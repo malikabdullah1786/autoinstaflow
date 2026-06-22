@@ -363,15 +363,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addInstagramAccount = async (username: string) => {
     if (!workspace) return { success: false, error: 'No active workspace.' };
 
-    const currentCount = accounts.filter(acc => acc.workspace_id === workspace.id).length;
-    const limit = getAccountLimitForPlan(workspace.plan);
-
-    if (currentCount >= limit) {
-      return {
-        success: false,
-        error: `Limit reached. Your ${workspace.plan.toUpperCase()} plan allows a maximum of ${limit} connected account(s). Please upgrade to link more accounts.`,
-      };
-    }
+    // Account limit check disabled for testing / Meta App Review
 
     if (isSupabaseConfigured()) {
       try {
@@ -479,15 +471,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }) => {
     if (!workspace) return { success: false, error: 'No active workspace.' };
 
-    const currentCount = accounts.filter(acc => acc.workspace_id === workspace.id).length;
-    const limit = getAccountLimitForPlan(workspace.plan);
-
-    if (currentCount >= limit) {
-      return {
-        success: false,
-        error: `Limit reached. Your ${workspace.plan.toUpperCase()} plan allows a maximum of ${limit} connected account(s). Please upgrade to link more accounts.`,
-      };
-    }
+    // Account limit check disabled for testing / Meta App Review
 
     if (isSupabaseConfigured()) {
       try {
