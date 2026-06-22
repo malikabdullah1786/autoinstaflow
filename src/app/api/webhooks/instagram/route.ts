@@ -92,11 +92,13 @@ export async function POST(req: Request) {
             console.log(`Received comment webhook: "${commentText}" from @${senderUsername} on post ${postId}`);
 
             // Fetch the Instagram account details from Supabase
-            const { data: account, error: accError } = await supabase
+            const { data: accounts, error: accError } = await supabase
               .from('instagram_accounts')
               .select('*')
               .eq('instagram_user_id', instagramAccountId)
-              .single();
+              .limit(1);
+
+            const account = accounts?.[0];
 
             if (accError || !account) {
               console.error(`Instagram account ${instagramAccountId} not found in database:`, accError);
@@ -360,11 +362,13 @@ export async function POST(req: Request) {
             console.log(`Received DM webhook from sender ID ${senderId}: "${messageText}" (payload: ${quickReplyPayload})`);
 
             // Fetch the Instagram account details from Supabase using entry.id
-            const { data: account, error: accError } = await supabase
+            const { data: accounts, error: accError } = await supabase
               .from('instagram_accounts')
               .select('*')
               .eq('instagram_user_id', instagramAccountId)
-              .single();
+              .limit(1);
+
+            const account = accounts?.[0];
 
             if (accError || !account) {
               console.error(`Instagram account ${instagramAccountId} not found in database:`, accError);

@@ -273,7 +273,7 @@ export default function ConnectPage() {
             <form onSubmit={handleSearchAccount} className="flex flex-col gap-4 text-left">
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Your Instagram username</label>
-                <div className="flex items-center bg-white border border-zinc-300 focus-within:border-[#e2f33c] focus-within:ring-1 focus-within:ring-[#e2f33c] rounded-xl overflow-hidden transition">
+                <div className="flex items-center bg-white border border-zinc-300 focus-within:border-purple-300 focus-within:ring-1 focus-within:ring-purple-300 rounded-xl overflow-hidden transition">
                   <span className="pl-4 text-zinc-400 text-sm font-semibold select-none">@</span>
                   <input
                     type="text"
@@ -293,7 +293,7 @@ export default function ConnectPage() {
               <button
                 type="submit"
                 disabled={isSearching}
-                className="w-full py-3.5 bg-black hover:bg-zinc-900 disabled:opacity-50 text-white text-sm font-bold transition rounded-xl shadow-md flex items-center justify-center gap-2"
+                className="w-full py-3.5 btn-gradient hover:opacity-95 disabled:opacity-50 text-white text-sm font-bold transition rounded-xl shadow-md flex items-center justify-center gap-2"
               >
                 {isSearching ? (
                   <>
@@ -309,8 +309,8 @@ export default function ConnectPage() {
             {foundAccount && (
               <div className="flex flex-col gap-5 mt-2">
                 {/* Account Found box */}
-                <div className="p-4 rounded-xl bg-white border border-emerald-500 text-left flex flex-col gap-3 relative overflow-hidden">
-                  <div className="flex items-center gap-1.5 text-emerald-600 text-xs font-bold">
+                <div className="p-4 rounded-xl bg-white border border-purple-200 text-left flex flex-col gap-3 relative overflow-hidden">
+                  <div className="flex items-center gap-1.5 text-purple-600 text-xs font-bold">
                     <CheckCircle className="w-4 h-4 shrink-0" />
                     <span>Account found</span>
                   </div>
@@ -340,7 +340,7 @@ export default function ConnectPage() {
 
                 <button
                   onClick={handleInstagramLogin}
-                  className="w-full py-4 rounded-xl bg-[#e2f33c] hover:bg-[#d4e234] text-black font-extrabold text-sm transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                  className="w-full py-4 rounded-xl btn-gradient hover:opacity-95 text-white font-extrabold text-sm transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
                     <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
