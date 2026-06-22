@@ -44,12 +44,12 @@ export default function ConnectPage() {
     success: false
   });
 
-  // If already connected, redirect to home
-  useEffect(() => {
-    if (user && workspace && accounts.length > 0) {
-      router.push('/dashboard/home');
-    }
-  }, [user, workspace, accounts, router]);
+  // If already connected, redirect to home (Temporarily disabled to allow testing/multiple accounts)
+  // useEffect(() => {
+  //   if (user && workspace && accounts.length > 0) {
+  //     router.push('/dashboard/home');
+  //   }
+  // }, [user, workspace, accounts, router]);
 
   // Handle Meta OAuth Callback
   useEffect(() => {
