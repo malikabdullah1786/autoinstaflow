@@ -130,8 +130,8 @@ export async function POST(req: Request) {
 
             const igUserId = `ig_user_${senderUsername.toLowerCase()}`;
 
-            // Check 24-hour deduplication (Property 9)
-            const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+            // Check 24-hour deduplication (Property 9) - Reduced to 10 seconds for testing
+            const oneDayAgo = new Date(Date.now() - 10 * 1000).toISOString();
             const { data: recentSent } = await supabase
               .from('automation_events')
               .select('id')
