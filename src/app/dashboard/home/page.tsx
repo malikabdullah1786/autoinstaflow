@@ -90,8 +90,8 @@ export default function HomeDashboard() {
             const hasAutomation = automations.some(aut => 
               aut.instagram_account_id === activeAccountId &&
               (
-                aut.trigger_post_id === item.id || 
-                (aut.trigger_type === 'comment' && aut.trigger_post_id === 'all_posts')
+                aut.trigger_config?.post_id === item.id || 
+                (aut.trigger_type === 'comment' && aut.trigger_config?.post_id === 'all_posts')
               )
             );
             return {
@@ -133,8 +133,8 @@ export default function HomeDashboard() {
             const hasAutomation = automations.some(aut => 
               aut.instagram_account_id === activeAccountId &&
               (
-                aut.trigger_post_id === item.id || 
-                (aut.trigger_type === 'comment' && aut.trigger_post_id === 'all_posts')
+                aut.trigger_config?.post_id === item.id || 
+                (aut.trigger_type === 'comment' && aut.trigger_config?.post_id === 'all_posts')
               )
             );
             return {
@@ -294,7 +294,7 @@ export default function HomeDashboard() {
                     {post.mediaUrl ? (
                       <div className="aspect-square w-full rounded-xl relative shadow-inner overflow-hidden border border-zinc-200">
                         <img 
-                          src={post.mediaUrl} 
+                          src={post.thumbnailUrl || post.mediaUrl} 
                           alt="Instagram media" 
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
                           onError={(e) => {

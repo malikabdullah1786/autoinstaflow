@@ -34,8 +34,8 @@ function ContentPageContent() {
             const hasAutomation = automations.some(aut => 
               aut.instagram_account_id === activeAccountId &&
               (
-                aut.trigger_post_id === item.id || 
-                (aut.trigger_type === 'comment' && aut.trigger_post_id === 'all_posts')
+                aut.trigger_config?.post_id === item.id || 
+                (aut.trigger_type === 'comment' && aut.trigger_config?.post_id === 'all_posts')
               )
             );
             return {
@@ -214,7 +214,7 @@ function ContentPageContent() {
                         {item.mediaUrl ? (
                           <div className="w-12 h-12 rounded-lg flex-shrink-0 overflow-hidden relative border border-zinc-200 shadow-inner">
                             <img 
-                              src={item.mediaUrl} 
+                              src={item.thumbnailUrl || item.mediaUrl} 
                               alt="Thumbnail" 
                               className="w-full h-full object-cover" 
                               onError={(e) => {
