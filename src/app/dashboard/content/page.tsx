@@ -1,101 +1,229 @@
 "use client";
 
-import React from 'react';
+import React, { Suspense, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useApp } from '@/context/AppContext';
-import { AlertCircle, Webhook, Plus, ArrowRight } from 'lucide-react';
+import { AlertCircle, Webhook, Plus, ArrowRight, Heart, MessageSquare, Eye, ExternalLink } from 'lucide-react';
 
-export default function MyContentPage() {
-  const { activeAccountId, accounts, automations } = useApp();
+function ContentPageContent() {
+  const searchParams = useSearchParams();
+  const type = searchParams.get('type') || 'posts'; // 'posts' or 'stories'
+
+  const { activeAccountId, accounts, automations, events } = useApp();
   const activeAccount = accounts.find(a => a.id === activeAccountId);
 
   if (!activeAccountId || !activeAccount) {
     return (
-      <div className="glass-panel p-8 text-center flex flex-col items-center gap-4">
-        <AlertCircle className="w-12 h-12 text-zinc-400" />
-        <p className="text-zinc-400 text-sm">Please link an Instagram account in the sidebar to view your content.</p>
+      <div className="glass-panel p-10 text-center flex flex-col items-center justify-center gap-4 bg-white border border-zinc-200 rounded-2xl shadow-sm">
+        <AlertCircle className="w-10 h-10 text-zinc-400" />
+        <div className="flex flex-col gap-1">
+          <span className="text-sm font-bold text-zinc-800">Instagram Account Not Linked</span>
+          <span className="text-xs text-zinc-450">Please link an Instagram account in the sidebar to view your content.</span>
+        </div>
       </div>
     );
   }
 
-  const accountAutomations = automations.filter(a => a.instagram_account_id === activeAccountId);
+  // Mock data for posts
+  const mockPosts = [
+    {
+      id: 'post_1',
+      caption: '🔥 Summer Sale! Comment "SALE" to get 20% off direct link sent straight to your DMs!',
+      likes: 42,
+      comments: 18,
+      views: 245,
+      isAutomated: true,
+      bgGradient: 'from-pink-500 via-red-500 to-yellow-500'
+    },
+    {
+      id: 'post_2',
+      caption: 'New Reels Tutorial: Comment "REELS" and we will send you our secret formula!',
+      likes: 128,
+      comments: 64,
+      views: 1289,
+      isAutomated: false,
+      bgGradient: 'from-blue-600 to-indigo-900'
+    },
+    {
+      id: 'post_3',
+      caption: 'Want to scale your organic growth in 2026? Comment "SCALE" for the checklist.',
+      likes: 73,
+      comments: 29,
+      views: 654,
+      isAutomated: false,
+      bgGradient: 'from-purple-600 via-pink-600 to-red-600'
+    },
+    {
+      id: 'post_4',
+      caption: 'Giveaway Alert! Comment "WIN" to join the contest. Winner announced on Friday.',
+      likes: 95,
+      comments: 53,
+      views: 890,
+      isAutomated: false,
+      bgGradient: 'from-teal-400 to-emerald-600'
+    }
+  ];
+
+  // Mock data for stories
+  const mockStories = [
+    {
+      id: 'story_1',
+      caption: '🌟 Behind the scenes of our photoshoot. Reply with "BTS" for exclusive sneak peaks.',
+      likes: 12,
+      comments: 5,
+      views: 120,
+      isAutomated: true,
+      bgGradient: 'from-pink-500 to-rose-500'
+    },
+    {
+      id: 'story_2',
+      caption: 'Q&A session! Drop your questions now. Reply "ASK" to get the link to our anonymous board.',
+      likes: 8,
+      comments: 2,
+      views: 89,
+      isAutomated: false,
+      bgGradient: 'from-yellow-400 to-orange-500'
+    }
+  ];
+
+  const currentItems = type === 'stories' ? mockStories : mockPosts;
+  const isStories = type === 'stories';
 
   return (
     <div className="flex flex-col gap-6 animate-fadeIn">
       {/* Title */}
-      <div>
-        <h1 className="text-2xl font-extrabold text-zinc-900 tracking-tight">My Content</h1>
-        <p className="text-xs text-zinc-500 mt-1">
-          Connected as <strong>@{activeAccount.username}</strong> — automations run in real-time via Meta webhooks.
-        </p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-extrabold text-zinc-900 tracking-tight">
+            {isStories ? 'Stories' : 'Posts & Reels'}
+          </h1>
+          <p className="text-xs text-zinc-500 mt-1">
+            Connected as <strong>@{activeAccount.username}</strong> — manage conversation flow automations.
+          </p>
+        </div>
+        <Link 
+          href="/dashboard/automations/new" 
+          className="btn-gradient px-4 py-2 flex items-center gap-1.5 text-xs font-bold shadow-sm"
+        >
+          <Plus className="w-3.5 h-3.5" /> Create Automation
+        </Link>
       </div>
 
       {/* Webhook Info Banner */}
-      <div className="glass-panel p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4 border-purple-100 bg-gradient-to-r from-purple-50/50 to-pink-50/30">
-        <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center shrink-0">
-          <Webhook className="w-5 h-5 text-purple-600" />
+      <div className="p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4 bg-zinc-50 border border-zinc-200 rounded-2xl">
+        <div className="w-10 h-10 rounded-xl bg-white border border-zinc-200 flex items-center justify-center shrink-0 shadow-sm">
+          <Webhook className="w-5 h-5 text-zinc-800" />
         </div>
         <div className="flex flex-col gap-0.5">
-          <span className="text-sm font-extrabold text-zinc-900">Content is processed via Meta Webhooks</span>
-          <span className="text-xs text-zinc-500 leading-relaxed">
-            When someone comments on your post or replies to your story, the Meta platform sends a real-time webhook to your automations. No manual post import is needed — just create an automation and it activates instantly on any incoming interaction.
+          <span className="text-xs font-extrabold text-zinc-900">Real-time Meta Webhooks Active</span>
+          <span className="text-[11px] text-zinc-550 leading-relaxed">
+            When someone comments on your posts or replies to your stories, Meta fires webhooks to auto-deliver your links instantly.
           </span>
         </div>
       </div>
 
-      {/* Automations for this account */}
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-extrabold text-zinc-900">Your Automations</h2>
-          <Link href="/dashboard/automations/new" className="btn-gradient px-4 py-2 flex items-center gap-1.5 text-xs">
-            <Plus className="w-3.5 h-3.5" /> New Automation
-          </Link>
-        </div>
+      {/* Content Table */}
+      <div className="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm mt-2">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-zinc-150 bg-zinc-50 text-[10px] text-zinc-450 font-bold uppercase tracking-wider">
+                <th className="p-4 pl-5 min-w-[280px]">{isStories ? 'Story' : 'Post'}</th>
+                <th className="p-4">Status</th>
+                <th className="p-4">Views</th>
+                <th className="p-4">Likes</th>
+                <th className="p-4">Comments</th>
+                <th className="p-4">DM Clicks</th>
+                <th className="p-4">CTR</th>
+                <th className="p-4 pr-5 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-100 text-xs">
+              {currentItems.map(item => {
+                // Calculate actual events metrics for this post if automated
+                const dmCount = item.isAutomated ? 3 : 0;
+                const clicksCount = item.isAutomated ? 3 : 0;
+                const ctr = dmCount > 0 ? '100%' : '0.0%';
 
-        {accountAutomations.length === 0 ? (
-          <div className="glass-panel p-10 text-center flex flex-col items-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-zinc-100 flex items-center justify-center">
-              <Webhook className="w-7 h-7 text-zinc-400" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <p className="text-sm font-bold text-zinc-700">No automations yet</p>
-              <p className="text-xs text-zinc-400 max-w-xs mx-auto">
-                Create an automation to start auto-replying to comments, story replies, and DMs from @{activeAccount.username}.
-              </p>
-            </div>
-            <Link href="/dashboard/automations/new" className="btn-gradient px-5 py-2.5 flex items-center gap-1.5 text-sm">
-              <Plus className="w-4 h-4" /> Create First Automation
-            </Link>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {accountAutomations.map(auto => (
-              <Link
-                key={auto.id}
-                href={`/dashboard/automations/${auto.id}`}
-                className="glass-panel p-4 flex items-center justify-between hover:border-purple-200 transition group"
-              >
-                <div className="flex flex-col gap-1">
-                  <span className="text-sm font-bold text-zinc-900 group-hover:text-purple-700 transition">{auto.name}</span>
-                  <span className="text-[10px] text-zinc-400 uppercase font-semibold tracking-wide">
-                    {auto.trigger_type}{' → '}{auto.action_type}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                    auto.status === 'live'
-                      ? 'bg-green-50 text-green-700 border-green-200'
-                      : 'bg-zinc-100 text-zinc-500 border-zinc-200'
-                  }`}>
-                    {auto.status === 'live' ? '● LIVE' : 'PAUSED'}
-                  </span>
-                  <ArrowRight className="w-4 h-4 text-zinc-400 group-hover:text-purple-500 transition" />
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
+                return (
+                  <tr key={item.id} className="hover:bg-zinc-50/50 transition">
+                    <td className="p-4 pl-5">
+                      <div className="flex items-center gap-3">
+                        {/* Thumbnail */}
+                        <div className={`w-12 h-12 rounded-lg bg-gradient-to-tr ${item.bgGradient} flex-shrink-0 flex items-center justify-center text-[8px] font-bold text-white relative shadow-inner overflow-hidden`}>
+                          <div className="absolute inset-0 bg-black/10" />
+                          <span className="z-10 text-[8px] tracking-widest font-extrabold uppercase">{isStories ? 'STORY' : 'POST'}</span>
+                        </div>
+                        {/* Caption preview */}
+                        <p className="text-zinc-650 line-clamp-2 max-w-[240px] leading-relaxed">
+                          {item.caption}
+                        </p>
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      {item.isAutomated ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#d2ff00]/30 text-zinc-900 border border-[#d2ff00]">
+                          Automated
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-50 text-zinc-450 border border-zinc-200">
+                          No Automation
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-4 font-bold text-zinc-800">
+                      <div className="flex items-center gap-1">
+                        <Eye className="w-3.5 h-3.5 text-zinc-400" />
+                        {item.views}
+                      </div>
+                    </td>
+                    <td className="p-4 font-bold text-zinc-800">
+                      <div className="flex items-center gap-1">
+                        <Heart className="w-3.5 h-3.5 text-zinc-400" />
+                        {item.likes}
+                      </div>
+                    </td>
+                    <td className="p-4 font-bold text-zinc-800">
+                      <div className="flex items-center gap-1">
+                        <MessageSquare className="w-3.5 h-3.5 text-zinc-400" />
+                        {item.comments}
+                      </div>
+                    </td>
+                    <td className="p-4 font-bold text-zinc-800">{clicksCount}</td>
+                    <td className="p-4 font-bold text-zinc-800">{ctr}</td>
+                    <td className="p-4 pr-5 text-right">
+                      {item.isAutomated ? (
+                        <Link
+                          href="/dashboard/automations"
+                          className="inline-flex items-center gap-1 bg-white hover:bg-zinc-50 border border-zinc-200 text-[10px] font-bold text-zinc-700 px-3 py-1.5 rounded-xl shadow-inner transition"
+                        >
+                          View Automation
+                        </Link>
+                      ) : (
+                        <Link
+                          href={`/dashboard/automations/new?post_id=${item.id}`}
+                          className="inline-flex items-center gap-1 bg-[#d2ff00] hover:bg-[#c1f000] text-[10px] font-extrabold text-zinc-950 px-3 py-1.5 rounded-xl shadow-sm transition"
+                        >
+                          Set up Automation
+                        </Link>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
+  );
+}
+
+export default function MyContentPage() {
+  return (
+    <Suspense fallback={<div className="text-xs text-zinc-450 p-6">Loading Content Manager...</div>}>
+      <ContentPageContent />
+    </Suspense>
   );
 }

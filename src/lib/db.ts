@@ -57,6 +57,7 @@ export interface ActionConfig {
   url: string;
   gate?: 'email' | 'follow' | null;
   prompt?: string;
+  comment_reply?: string;
 }
 
 export interface Automation {

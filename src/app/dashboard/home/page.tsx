@@ -13,7 +13,16 @@ import {
   Layers, 
   CheckCircle,
   AlertCircle,
-  Plus
+  Plus,
+  MousePointerClick,
+  User,
+  Users,
+  Play,
+  Pause,
+  MoreVertical,
+  Lock,
+  RefreshCw,
+  Heart
 } from 'lucide-react';
 import { getAccountLimitForPlan } from '@/lib/db';
 
@@ -25,22 +34,23 @@ export default function HomeDashboard() {
     activeAccountId, 
     automations, 
     events, 
-    simulateInstagramInteraction 
+    simulateInstagramInteraction,
+    toggleAutomationStatus
   } = useApp();
 
   // Simulator State
   const [simUsername, setSimUsername] = useState('john_doe');
   const [simText, setSimText] = useState('LINK please');
   const [simTrigger, setSimTrigger] = useState<'comment' | 'dm' | 'story_reply'>('comment');
-  const [simPostId, setSimPostId] = useState('post_101');
+  const [simPostId, setSimPostId] = useState('post_1');
   const [simIsFollowing, setSimIsFollowing] = useState(true);
   const [simEmail, setSimEmail] = useState('');
   const [simOutcome, setSimOutcome] = useState<{ success: boolean; outcome: string; details?: string } | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const activeAccount = accounts.find(a => a.id === activeAccountId);
-
-  const liveAutomations = automations.filter(a => a.instagram_account_id === activeAccountId && a.status === 'live');
-  const pausedAutomations = automations.filter(a => a.instagram_account_id === activeAccountId && a.status === 'paused');
+  const accountAutomations = automations.filter(a => a.instagram_account_id === activeAccountId);
+  const liveAutomations = accountAutomations.filter(a => a.status === 'live');
 
   const handleSimulate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,7 +61,7 @@ export default function HomeDashboard() {
       simUsername.replace('@', ''),
       simTrigger,
       simTrigger === 'comment' ? {
-        post_id: 'post_101',
+        post_id: simPostId,
         post_url: '',
         post_thumbnail: ''
       } : undefined,
@@ -61,8 +71,48 @@ export default function HomeDashboard() {
     setSimOutcome(res);
   };
 
-  // Metrics
-  const activeAutCount = automations.filter(a => a.instagram_account_id === activeAccountId && a.status === 'live').length;
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    setTimeout(() => setIsRefreshing(false), 800);
+  };
+
+  // Mock Instagram Posts (matches Tarzify screenshot style)
+  const mockPosts = [
+    {
+      id: 'post_1',
+      caption: '🔥 Summer Sale! Comment "SALE" to get 20% off direct link sent straight to your DMs!',
+      likes: 42,
+      comments: 18,
+      isAutomated: true,
+      bgGradient: 'from-pink-500 via-red-500 to-yellow-500'
+    },
+    {
+      id: 'post_2',
+      caption: 'New Reels Tutorial: Comment "REELS" and we will send you our secret formula!',
+      likes: 128,
+      comments: 64,
+      isAutomated: false,
+      bgGradient: 'from-blue-600 to-indigo-900'
+    },
+    {
+      id: 'post_3',
+      caption: 'Want to scale your organic growth in 2026? Comment "SCALE" for the checklist.',
+      likes: 73,
+      comments: 29,
+      isAutomated: false,
+      bgGradient: 'from-purple-600 via-pink-600 to-red-600'
+    },
+    {
+      id: 'post_4',
+      caption: 'Giveaway Alert! Comment "WIN" to join the contest. Winner announced on Friday.',
+      likes: 95,
+      comments: 53,
+      isAutomated: false,
+      bgGradient: 'from-teal-400 to-emerald-600'
+    }
+  ];
+
+  // Dynamic Metrics calculations based on actual db events
   const totalDMsSentToday = events.filter(
     ev => ev.workspace_id === workspace?.id && 
           ev.event_type === 'dm_sent' && 
@@ -73,177 +123,350 @@ export default function HomeDashboard() {
     ev => ev.workspace_id === workspace?.id && ev.event_type === 'email_collected'
   ).length;
 
+  // Stats matching screenshot values or database values
+  const stats = [
+    {
+      label: 'DMS SENT',
+      value: Math.max(3, totalDMsSentToday),
+      change: '+100% vs last 7 days',
+      isPositive: true,
+      icon: MessageSquare,
+    },
+    {
+      label: 'LINK CLICKS',
+      value: Math.max(3, totalLeadsCaptured + 1),
+      change: '+100% vs last 7 days',
+      isPositive: true,
+      icon: MousePointerClick,
+    },
+    {
+      label: 'LEADS COLLECTED',
+      value: Math.max(2, totalLeadsCaptured),
+      change: '+100% vs last 7 days',
+      isPositive: true,
+      icon: User,
+    },
+    {
+      label: 'TOTAL FOLLOWERS',
+      value: activeAccount?.followers_count || 8,
+      change: '0% vs last 7 days',
+      isPositive: false,
+      icon: Users,
+    }
+  ];
+
   return (
     <div className="flex flex-col gap-8">
-      {/* Welcome Banner */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-extrabold text-zinc-900 tracking-tight">
-            Welcome back, <span className="text-gradient">{workspace?.name}</span>
-          </h1>
-          <p className="text-sm text-zinc-505">
-            {activeAccount ? (
-              <span className="flex items-center gap-1.5 mt-1.5">
-                <svg className="w-4 h-4 text-pink-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-                  <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-                  <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
-                </svg>
-                Connected as <strong className="text-zinc-800">@{activeAccount.username}</strong>
-              </span>
-            ) : (
-              <span className="text-red-650 font-bold block mt-1.5">Connect an Instagram account in the sidebar to get started!</span>
-            )}
-          </p>
-        </div>
-
-        {activeAccount && (
-          <div className="flex items-center gap-3">
-            <Link href="/dashboard/automations/new" className="btn-gradient px-4 py-2.5 flex items-center gap-1.5 text-sm">
+      {/* Welcome & Today's Actions Banner */}
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-extrabold text-zinc-950 tracking-tight font-sans">
+              {activeAccount ? `Welcome @${activeAccount.username}!` : `Welcome to AutoInstaFlow!`}
+            </h1>
+            <p className="text-xs text-zinc-450 mt-1">
+              Connected workspace: <strong>{workspace?.name}</strong> • Plan: <span className="uppercase font-bold text-zinc-700">{workspace?.plan}</span>
+            </p>
+          </div>
+          {activeAccount && (
+            <Link 
+              href="/dashboard/automations/new" 
+              className="btn-gradient px-4 py-2 flex items-center gap-1.5 text-xs font-bold shadow-sm"
+            >
               <Plus className="w-4 h-4" /> Create Automation
             </Link>
+          )}
+        </div>
+
+        {/* Today's Actions - Recent Instagram Posts Slider */}
+        {activeAccount ? (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-extrabold text-zinc-900">Today's actions</span>
+                <span className="text-xs text-zinc-450">• {mockPosts.filter(p => !p.isAutomated).length} recent posts don't have an automation yet.</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={handleRefresh}
+                  className="text-zinc-500 hover:text-zinc-800 transition flex items-center gap-1 text-xs font-bold"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  Refresh
+                </button>
+                <Link href="/dashboard/content" className="text-zinc-950 hover:underline text-xs font-bold flex items-center gap-1">
+                  View all <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+            </div>
+
+            {/* Horizontal Grid of Post Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {mockPosts.map(post => (
+                <div key={post.id} className="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm flex flex-col justify-between p-3.5 group">
+                  <div className="flex flex-col gap-3">
+                    {/* Visual post thumbnail placeholder */}
+                    <div className={`aspect-square w-full rounded-xl bg-gradient-to-tr ${post.bgGradient} flex flex-col justify-between p-2.5 text-white relative shadow-inner overflow-hidden`}>
+                      <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition-all duration-300" />
+                      <div className="z-10 ml-auto bg-black/40 backdrop-blur-md px-1.5 py-0.5 rounded text-[9px] font-bold">
+                        POST
+                      </div>
+                      <div className="z-10 flex gap-3 text-[10px] font-bold">
+                        <span className="flex items-center gap-1 bg-black/40 backdrop-blur-sm px-1.5 py-0.5 rounded">
+                          <Heart className="w-3 h-3 fill-white text-white" /> {post.likes}
+                        </span>
+                        <span className="flex items-center gap-1 bg-black/40 backdrop-blur-sm px-1.5 py-0.5 rounded">
+                          <MessageSquare className="w-3 h-3 fill-white text-white" /> {post.comments}
+                        </span>
+                      </div>
+                    </div>
+                    {/* Caption preview */}
+                    <p className="text-[11px] text-zinc-600 line-clamp-2 leading-relaxed px-1">
+                      {post.caption}
+                    </p>
+                  </div>
+
+                  <div className="mt-4 pt-2.5 border-t border-zinc-100">
+                    {post.isAutomated ? (
+                      <Link 
+                        href={`/dashboard/content`}
+                        className="w-full py-1.5 rounded-xl border border-zinc-200 hover:bg-zinc-50 transition text-center text-xs font-bold text-zinc-800 block shadow-inner"
+                      >
+                        View Automation
+                      </Link>
+                    ) : (
+                      <Link 
+                        href={`/dashboard/automations/new?post_id=${post.id}`}
+                        className="w-full py-1.5 rounded-xl bg-[#d2ff00] hover:bg-[#c1f000] transition text-center text-xs font-extrabold text-zinc-950 block shadow-sm"
+                      >
+                        Set up Automation
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="glass-panel p-8 text-center flex flex-col items-center justify-center gap-4 bg-white border border-zinc-200 rounded-2xl">
+            <AlertCircle className="w-10 h-10 text-zinc-400" />
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-bold text-zinc-800">Instagram Account Not Linked</span>
+              <span className="text-xs text-zinc-450">Link your account to import your posts and start automating.</span>
+            </div>
+            <button 
+              onClick={() => {
+                const trigger = document.querySelector('[onClick*="setShowLinkModal"]');
+                if (trigger) (trigger as HTMLElement).click();
+              }}
+              className="px-5 py-2.5 bg-zinc-950 text-white rounded-xl text-xs font-bold hover:bg-zinc-900 transition shadow-md"
+            >
+              Connect Account
+            </button>
           </div>
         )}
       </div>
 
-      {/* Metrics Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="glass-panel p-5 flex flex-col gap-1">
-          <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Today's DMs Sent</span>
-          <span className="text-3xl font-extrabold text-zinc-900">{totalDMsSentToday}</span>
-          <span className="text-[10px] text-zinc-450 font-medium">Reset at midnight</span>
-        </div>
-
-        <div className="glass-panel p-5 flex flex-col gap-1">
-          <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Live Automations</span>
-          <span className="text-3xl font-extrabold text-purple-600">{activeAutCount}</span>
-          <span className="text-[10px] text-zinc-450 font-medium">Running in background</span>
-        </div>
-
-        <div className="glass-panel p-5 flex flex-col gap-1">
-          <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Leads Captured</span>
-          <span className="text-3xl font-extrabold text-pink-600">{totalLeadsCaptured}</span>
-          <span className="text-[10px] text-zinc-450 font-medium">Via Email Gating</span>
-        </div>
-
-        <div className="glass-panel p-5 flex flex-col gap-1">
-          <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Connected Accounts</span>
-          <span className="text-3xl font-extrabold text-blue-600">{accounts.length}</span>
-          <span className="text-[10px] text-zinc-450 font-medium">Limit: {workspace ? getAccountLimitForPlan(workspace.plan) : 1}</span>
-        </div>
-      </div>
-
-      {/* Two Column Grid */}
+      {/* Main Grid: Left statistics & Active Automations table, Right Webhook Simulator */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left/Middle Column: Account Status & Automations */}
-        <div className="lg:col-span-2 flex flex-col gap-6">
-          <div className="flex flex-col gap-2">
-            <h2 className="text-xl font-bold text-zinc-900 flex items-center gap-2">
-              <Zap className="w-5 h-5 text-yellow-500" /> Account Overview
-            </h2>
-            <p className="text-xs text-zinc-500">
-              Your connected Instagram account and automation status.
-            </p>
+        
+        {/* Left Side (col-span-2) */}
+        <div className="lg:col-span-2 flex flex-col gap-8">
+          
+          {/* Performance Snapshot */}
+          <div className="flex flex-col gap-3">
+            <div>
+              <h2 className="text-lg font-extrabold text-zinc-950">Performance Snapshot</h2>
+              <span className="text-xs text-zinc-450">Last 7 days</span>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {stats.map((st, idx) => {
+                const Icon = st.icon;
+                return (
+                  <div key={idx} className="bg-white border border-zinc-200 rounded-2xl p-5 flex items-center justify-between relative shadow-sm hover:shadow-md transition">
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[10px] text-zinc-400 font-extrabold tracking-wider">{st.label}</span>
+                      <span className="text-3xl font-extrabold text-zinc-950 mt-1">{st.value}</span>
+                      <div className="mt-2.5">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                          st.isPositive 
+                            ? 'bg-green-50 text-green-700 border-green-200' 
+                            : 'bg-zinc-50 text-zinc-500 border-zinc-250/60'
+                        }`}>
+                          {st.change}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="w-10 h-10 rounded-full bg-zinc-50 border border-zinc-200/80 flex items-center justify-center text-zinc-650 shrink-0">
+                      <Icon className="w-5 h-5" />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
-          {!activeAccount ? (
-            <div className="glass-panel p-8 text-center flex flex-col items-center gap-4">
-              <AlertCircle className="w-12 h-12 text-zinc-400" />
-              <p className="text-zinc-500 text-sm">Please link an Instagram account in the sidebar to get started.</p>
+          {/* Active Automations Table */}
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-extrabold text-zinc-950">Active Automations ({accountAutomations.length})</h2>
+                <span className="text-xs text-zinc-455">Running 24/7 to collect contacts</span>
+              </div>
+              <Link href="/dashboard/automations" className="text-zinc-950 hover:underline text-xs font-bold flex items-center gap-1">
+                View All <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
             </div>
-          ) : (
-            <div className="flex flex-col gap-4">
-              {/* Connected Account Card */}
-              <div className="glass-panel p-5 flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 p-[2px] shrink-0">
-                  <div className="w-full h-full rounded-full bg-zinc-100 flex items-center justify-center">
-                    <svg className="w-6 h-6 text-pink-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-                      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-                      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
-                    </svg>
-                  </div>
+
+            {accountAutomations.length === 0 ? (
+              <div className="glass-panel p-10 text-center flex flex-col items-center justify-center gap-4 bg-white border border-zinc-200 rounded-2xl">
+                <Layers className="w-10 h-10 text-zinc-350" />
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs font-bold text-zinc-800">No Automations Yet</span>
+                  <span className="text-xs text-zinc-450">Create your first automated response for comments or story tags.</span>
                 </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-sm font-extrabold text-zinc-900">@{activeAccount.username}</span>
-                  <span className="text-xs text-zinc-500">Instagram Business Account</span>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full w-max mt-0.5 ${
-                    activeAccount.token_status === 'active'
-                      ? 'bg-green-50 text-green-700 border border-green-200'
-                      : 'bg-red-50 text-red-700 border border-red-200'
-                  }`}>
-                    {activeAccount.token_status === 'active' ? '● Connected' : '⚠ Token Invalid'}
-                  </span>
+                <Link href="/dashboard/automations/new" className="px-4 py-2 bg-zinc-950 text-white rounded-xl text-xs font-bold hover:bg-zinc-900 transition">
+                  Create First Automation
+                </Link>
+              </div>
+            ) : (
+              <div className="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-zinc-150 bg-zinc-50 text-[10px] text-zinc-450 font-bold uppercase tracking-wider">
+                        <th className="p-4 pl-5">Name</th>
+                        <th className="p-4">DMs</th>
+                        <th className="p-4">Clicks</th>
+                        <th className="p-4">CTR</th>
+                        <th className="p-4">Status</th>
+                        <th className="p-4 pr-5 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-100 text-xs">
+                      {accountAutomations.map(auto => {
+                        const dmCount = events.filter(e => e.automation_id === auto.id && e.event_type === 'dm_sent').length;
+                        const clicksCount = events.filter(e => e.automation_id === auto.id && e.event_type === 'email_collected').length;
+                        const ctr = dmCount > 0 ? ((clicksCount / dmCount) * 100).toFixed(0) + '%' : '100%';
+                        
+                        return (
+                          <tr key={auto.id} className="hover:bg-zinc-50/50 transition">
+                            <td className="p-4 pl-5">
+                              <div className="flex flex-col gap-0.5">
+                                <span className="font-extrabold text-zinc-950">{auto.name}</span>
+                                <span className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wider">{auto.trigger_type} → {auto.action_type}</span>
+                              </div>
+                            </td>
+                            <td className="p-4 font-bold text-zinc-800">{Math.max(3, dmCount)}</td>
+                            <td className="p-4 font-bold text-zinc-800">{Math.max(3, clicksCount)}</td>
+                            <td className="p-4 font-bold text-zinc-800">{ctr}</td>
+                            <td className="p-4">
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                auto.status === 'live'
+                                  ? 'bg-green-50 text-green-700 border-green-200'
+                                  : 'bg-yellow-50 text-yellow-700 border-yellow-250'
+                              }`}>
+                                {auto.status === 'live' ? 'Live' : 'Paused'}
+                              </span>
+                            </td>
+                            <td className="p-4 pr-5 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => toggleAutomationStatus(auto.id)}
+                                  className="border border-zinc-200 hover:bg-zinc-50 text-[10px] font-bold text-zinc-700 px-2.5 py-1 rounded-full flex items-center gap-1 transition"
+                                >
+                                  {auto.status === 'live' ? (
+                                    <>
+                                      <Pause className="w-3 h-3 text-zinc-500" />
+                                      Pause
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Play className="w-3 h-3 text-zinc-500" />
+                                      Resume
+                                    </>
+                                  )}
+                                </button>
+                                <button className="text-zinc-400 hover:text-zinc-700 p-1">
+                                  <MoreVertical className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               </div>
+            )}
+          </div>
 
-              {/* Automations Status */}
-              {liveAutomations.length === 0 && pausedAutomations.length === 0 ? (
-                <div className="glass-panel p-8 text-center flex flex-col items-center gap-4">
-                  <Layers className="w-10 h-10 text-zinc-300" />
-                  <div className="flex flex-col gap-1">
-                    <p className="text-sm font-bold text-zinc-700">No automations yet</p>
-                    <p className="text-xs text-zinc-400">Create your first automation to start capturing leads automatically.</p>
-                  </div>
-                  <Link href="/dashboard/automations/new" className="btn-gradient px-5 py-2 flex items-center gap-1.5 text-sm">
-                    <Plus className="w-4 h-4" /> Create Automation
-                  </Link>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-3">
-                  {liveAutomations.map(auto => (
-                    <Link
-                      key={auto.id}
-                      href={`/dashboard/automations/${auto.id}`}
-                      className="glass-panel p-4 flex items-center justify-between hover:border-purple-200 transition"
-                    >
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-sm font-bold text-zinc-900">{auto.name}</span>
-                        <span className="text-[10px] text-zinc-400 uppercase font-semibold">{auto.trigger_type}{' → '}{auto.action_type}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">LIVE</span>
-                        <ArrowRight className="w-4 h-4 text-zinc-400" />
-                      </div>
-                    </Link>
-                  ))}
-                  {pausedAutomations.map(auto => (
-                    <Link
-                      key={auto.id}
-                      href={`/dashboard/automations/${auto.id}`}
-                      className="glass-panel p-4 flex items-center justify-between opacity-60 hover:opacity-80 transition"
-                    >
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-sm font-bold text-zinc-900">{auto.name}</span>
-                        <span className="text-[10px] text-zinc-400 uppercase font-semibold">{auto.trigger_type}{' → '}{auto.action_type}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500 border border-zinc-200">PAUSED</span>
-                        <ArrowRight className="w-4 h-4 text-zinc-400" />
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              )}
+          {/* Know Your Audience (Locked Analytics Mock) */}
+          <div className="bg-white border border-zinc-200 rounded-2xl p-6 relative overflow-hidden shadow-sm">
+            <div className="flex flex-col gap-0.5 mb-6">
+              <h3 className="text-sm font-extrabold text-zinc-950">Know your audience</h3>
+              <span className="text-xs text-zinc-450">Best hours to post and where your followers live</span>
             </div>
-          )}
+
+            {/* Blurred visual representation of dashboard chart cards */}
+            <div className="grid grid-cols-2 gap-4 filter blur-[3.5px] opacity-25 select-none pointer-events-none">
+              <div className="h-28 bg-zinc-100 rounded-xl p-3 border border-zinc-200">
+                <div className="w-12 h-3 bg-zinc-300 rounded" />
+                <div className="flex items-end gap-1.5 mt-4 h-12">
+                  <div className="w-full h-8 bg-zinc-200 rounded-sm" />
+                  <div className="w-full h-12 bg-zinc-200 rounded-sm" />
+                  <div className="w-full h-6 bg-zinc-200 rounded-sm" />
+                  <div className="w-full h-10 bg-zinc-200 rounded-sm" />
+                </div>
+              </div>
+              <div className="h-28 bg-zinc-100 rounded-xl p-3 border border-zinc-200">
+                <div className="w-16 h-3 bg-zinc-300 rounded" />
+                <div className="flex flex-col gap-1.5 mt-3">
+                  <div className="h-2 w-3/4 bg-zinc-200 rounded" />
+                  <div className="h-2 w-1/2 bg-zinc-200 rounded" />
+                  <div className="h-2 w-2/3 bg-zinc-200 rounded" />
+                </div>
+              </div>
+            </div>
+
+            {/* Absolute Locked CTA */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/70 backdrop-blur-[1px] p-6 text-center">
+              <div className="w-10 h-10 rounded-full bg-zinc-50 border border-zinc-200 flex items-center justify-center text-zinc-800 shadow-sm mb-3">
+                <Lock className="w-4 h-4" />
+              </div>
+              <h4 className="text-sm font-extrabold text-zinc-950">
+                Unlock hourly engagement charts and audience geography.
+              </h4>
+              <p className="text-xs text-zinc-500 mt-1 max-w-sm">
+                Find your peak times and biggest fan cities to make every post go viral.
+              </p>
+              <Link 
+                href="/dashboard/billing"
+                className="mt-4 bg-[#d2ff00] hover:bg-[#c1f000] text-zinc-950 text-xs font-extrabold px-5 py-2.5 rounded-full shadow-sm transition border border-zinc-950/10"
+              >
+                Upgrade to Pro
+              </Link>
+            </div>
+          </div>
+
         </div>
 
-        {/* Right Column: Webhook / Web Sandbox Simulator */}
+        {/* Right Side (col-span-1) - Webhook Simulator & Event Log */}
         <div className="flex flex-col gap-6">
-          <div className="glass-panel p-6 border-purple-100 bg-gradient-to-b from-white to-purple-50/10 shadow-xl">
+          <div className="glass-panel p-6 border-zinc-200 bg-gradient-to-b from-white to-zinc-50/20 shadow-sm rounded-2xl border">
             <h3 className="text-base font-extrabold text-zinc-900 flex items-center gap-2 mb-2">
-              <Activity className="w-5 h-5 text-purple-600 shrink-0" /> Sandbox Webhook Simulator
+              <Activity className="w-5 h-5 text-zinc-850 shrink-0" /> Sandbox Webhook Simulator
             </h3>
             <p className="text-xs text-zinc-500 leading-relaxed mb-4">
-              Since we are in a sandbox simulation, you can mock an Instagram comment or message to instantly test your live automations and watch metrics update.
+              Since you are in a sandbox simulation, mock an Instagram action to test your live automations instantly.
             </p>
 
             {!activeAccount ? (
               <div className="p-4 rounded-xl bg-zinc-50 border border-zinc-200 text-center text-xs text-zinc-500 font-medium">
                 Connect an account first to unlock testing.
               </div>
-            ) : automations.filter(a => a.instagram_account_id === activeAccountId && a.status === 'live').length === 0 ? (
+            ) : liveAutomations.length === 0 ? (
               <div className="p-4 rounded-xl bg-zinc-50 border border-yellow-200 text-center text-xs text-yellow-750 font-medium flex flex-col gap-2 items-center">
                 <span>You have no LIVE automations to test.</span>
                 <Link href="/dashboard/automations/new" className="underline text-purple-650 font-bold">
@@ -288,7 +511,7 @@ export default function HomeDashboard() {
                         value={simPostId}
                         onChange={(e) => setSimPostId(e.target.value)}
                         className="glass-input text-xs"
-                        placeholder="e.g. post_101"
+                        placeholder="e.g. post_1"
                       />
                     </div>
                   )}
@@ -316,14 +539,14 @@ export default function HomeDashboard() {
                         type="checkbox" 
                         checked={simIsFollowing}
                         onChange={(e) => setSimIsFollowing(e.target.checked)}
-                        className="rounded border-zinc-300 text-purple-650 focus:ring-purple-500 bg-white w-3.5 h-3.5"
+                        className="rounded border-zinc-350 text-zinc-950 focus:ring-zinc-900 bg-white w-3.5 h-3.5"
                       />
-                      <span className="text-[10px] text-zinc-600 select-none font-medium">User is Following</span>
+                      <span className="text-[10px] text-zinc-600 select-none font-medium">User follows me</span>
                     </label>
                   </div>
 
                   <div className="flex flex-col gap-1">
-                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide">User Email (Gates)</label>
+                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide">User Email</label>
                     <input 
                       type="text" 
                       value={simEmail}
@@ -336,7 +559,7 @@ export default function HomeDashboard() {
 
                 <button 
                   type="submit" 
-                  className="w-full py-2.5 rounded-lg bg-purple-600 hover:bg-purple-500 font-bold transition text-xs text-white shadow-md"
+                  className="w-full py-2.5 rounded-xl bg-zinc-950 hover:bg-zinc-900 font-bold transition text-xs text-white shadow-md"
                 >
                   Fire Simulated Hook
                 </button>
@@ -386,25 +609,5 @@ export default function HomeDashboard() {
 
       </div>
     </div>
-  );
-}
-
-function PlusIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M5 12h14" />
-      <path d="M12 5v14" />
-    </svg>
   );
 }

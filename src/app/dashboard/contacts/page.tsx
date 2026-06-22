@@ -4,13 +4,13 @@ import React, { useState } from 'react';
 import { useApp } from '@/context/AppContext';
 import { 
   Users, 
-  Search, 
   Download, 
   Trash2, 
   Lock, 
   AlertTriangle,
   Mail,
-  X
+  X,
+  ChevronDown
 } from 'lucide-react';
 
 export default function ContactsPage() {
@@ -18,6 +18,8 @@ export default function ContactsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAccountId, setSelectedAccountId] = useState<string>('all');
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [emailFilter, setEmailFilter] = useState<'all' | 'with_email' | 'without_email'>('all');
 
   const isFreePlan = workspace?.plan === 'free';
 
@@ -48,21 +50,30 @@ export default function ContactsPage() {
     if (!matchesSearch) return false;
     
     // 2. Account filter
-    if (selectedAccountId === 'all') return true;
-    
-    const contactAccount = getContactAccount(contact.instagram_user_id);
-    return contactAccount?.id === selectedAccountId;
+    if (selectedAccountId !== 'all') {
+      const contactAccount = getContactAccount(contact.instagram_user_id);
+      if (contactAccount?.id !== selectedAccountId) return false;
+    }
+
+    // 3. Email filter
+    if (emailFilter === 'with_email' && !contact.email) return false;
+    if (emailFilter === 'without_email' && contact.email) return false;
+
+    return true;
   });
 
-  const handleExportCSV = () => {
+  const handleExportCSV = (onlyWithEmail: boolean) => {
     if (isFreePlan) {
       setShowUpgradeModal(true);
       return;
     }
 
+    // Filter contacts based on whether they have email or not
+    const targetContacts = filteredContacts.filter(c => onlyWithEmail ? !!c.email : !c.email);
+
     // Generate CSV content
     const headers = ['ID', 'Instagram Username', 'Email', 'Source Account', 'Created At', 'Updated At'];
-    const rows = filteredContacts.map(c => {
+    const rows = targetContacts.map(c => {
       const acc = getContactAccount(c.instagram_user_id);
       return [
         c.id,
@@ -80,7 +91,10 @@ export default function ContactsPage() {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `autoinstaflow_contacts_${workspace?.id}.csv`);
+    const filename = onlyWithEmail 
+      ? `autoinstaflow_contacts_with_email_${workspace?.id}.csv` 
+      : `autoinstaflow_contacts_without_email_${workspace?.id}.csv`;
+    link.setAttribute("download", filename);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -97,17 +111,54 @@ export default function ContactsPage() {
           <p className="text-xs text-zinc-505">View information about users who interacted with your automations and submitted details.</p>
         </div>
 
-        <button
-          onClick={handleExportCSV}
-          className={`px-4 py-2.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition ${
-            isFreePlan 
-              ? 'bg-white border border-zinc-200 text-zinc-450 hover:bg-zinc-50 hover:text-zinc-650 shadow-sm' 
-              : 'btn-gradient shadow-md'
-          }`}
-        >
-          {isFreePlan ? <Lock className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
-          Export CSV
-        </button>
+        <div className="relative">
+          <button
+            onClick={() => {
+              if (isFreePlan) {
+                setShowUpgradeModal(true);
+              } else {
+                setExportMenuOpen(!exportMenuOpen);
+              }
+            }}
+            className={`px-4 py-2.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition ${
+              isFreePlan 
+                ? 'bg-white border border-zinc-200 text-zinc-450 hover:bg-zinc-50 hover:text-zinc-650 shadow-sm' 
+                : 'btn-gradient shadow-md'
+            }`}
+          >
+            {isFreePlan ? <Lock className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
+            Export CSV
+            {!isFreePlan && <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+
+          {exportMenuOpen && !isFreePlan && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setExportMenuOpen(false)} />
+              <div className="absolute right-0 mt-2 w-48 bg-white border border-zinc-200 rounded-xl shadow-lg py-1.5 z-20 animate-fadeIn">
+                <button
+                  onClick={() => {
+                    handleExportCSV(true);
+                    setExportMenuOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-2 text-xs text-zinc-700 hover:bg-zinc-50 hover:text-purple-650 transition font-semibold flex items-center gap-2"
+                >
+                  <Mail className="w-3.5 h-3.5 text-zinc-450" />
+                  Export with Email
+                </button>
+                <button
+                  onClick={() => {
+                    handleExportCSV(false);
+                    setExportMenuOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-2 text-xs text-zinc-700 hover:bg-zinc-50 hover:text-purple-650 transition font-semibold flex items-center gap-2"
+                >
+                  <Users className="w-3.5 h-3.5 text-zinc-450" />
+                  Export without Email
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Metrics mini row */}
@@ -147,18 +198,17 @@ export default function ContactsPage() {
       <div className="flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
           <div className="max-w-md w-full relative flex-1">
-            <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-2.5" />
             <input
               type="text"
               placeholder="Search by username or email..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full glass-input pl-9 text-xs"
+              className="w-full glass-input px-3.5 text-xs"
             />
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-zinc-550 font-bold uppercase tracking-wider whitespace-nowrap">Source Account:</span>
+            <span className="text-[10px] text-zinc-555 font-bold uppercase tracking-wider whitespace-nowrap">Source Account:</span>
             <select
               value={selectedAccountId}
               onChange={(e) => setSelectedAccountId(e.target.value)}
@@ -168,6 +218,19 @@ export default function ContactsPage() {
               {accounts.map(acc => (
                 <option key={acc.id} value={acc.id}>@{acc.username}</option>
               ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-zinc-555 font-bold uppercase tracking-wider whitespace-nowrap">Email Filter:</span>
+            <select
+              value={emailFilter}
+              onChange={(e) => setEmailFilter(e.target.value as any)}
+              className="glass-input text-xs py-1.5 px-3 min-w-[150px] bg-white text-zinc-800 rounded-lg border border-zinc-200 focus:outline-none focus:border-purple-500"
+            >
+              <option value="all">All Contacts</option>
+              <option value="with_email">With Email</option>
+              <option value="without_email">Without Email</option>
             </select>
           </div>
         </div>

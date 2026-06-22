@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useApp } from '@/context/AppContext';
 import { 
   LayoutDashboard, 
@@ -22,9 +22,42 @@ import {
   CheckCircle,
   AlertCircle,
   ShieldCheck,
-  Menu
+  Menu,
+  Home,
+  HelpCircle,
+  Layers,
+  LifeBuoy
 } from 'lucide-react';
 import { getRemainingQuota, getAccountLimitForPlan } from '@/lib/db';
+
+function ContentLinks({ pathname }: { pathname: string }) {
+  const searchParams = useSearchParams();
+  const typeParam = searchParams ? searchParams.get('type') : null;
+  return (
+    <>
+      <Link
+        href="/dashboard/content"
+        className={`flex items-center gap-2 py-1.5 px-3 rounded-lg text-xs font-semibold transition ${
+          pathname === '/dashboard/content' && (!typeParam || typeParam !== 'stories')
+            ? 'bg-zinc-100 border border-zinc-950 text-zinc-950 font-bold'
+            : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'
+        }`}
+      >
+        Posts & Reels
+      </Link>
+      <Link
+        href="/dashboard/content?type=stories"
+        className={`flex items-center gap-2 py-1.5 px-3 rounded-lg text-xs font-semibold transition ${
+          pathname === '/dashboard/content' && typeParam === 'stories'
+            ? 'bg-zinc-100 border border-zinc-950 text-zinc-950 font-bold'
+            : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'
+        }`}
+      >
+        Stories
+      </Link>
+    </>
+  );
+}
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { 
@@ -45,6 +78,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [linkError, setLinkError] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [myContentOpen, setMyContentOpen] = useState(true);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
 
   // Close sidebar on path change (mobile user flow)
   useEffect(() => {
@@ -117,61 +152,48 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return date >= startOfToday;
   }).length;
 
-  const menuItems = [
-    { name: 'Home Dashboard', href: '/dashboard/home', icon: LayoutDashboard },
-    { name: 'Automations', href: '/dashboard/automations', icon: Settings },
-    { name: 'My Content', href: '/dashboard/content', icon: FileText },
-    { name: 'Contacts', href: '/dashboard/contacts', icon: Users },
-    { name: 'Rewind Engine', href: '/dashboard/rewind', icon: RefreshCcw },
-    { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
-    { name: 'Billing & Add-ons', href: '/dashboard/billing', icon: CreditCard },
-  ];
-
-  menuItems.push({ name: 'Sandbox Simulator', href: '/dashboard/simulator', icon: Sparkles });
-
   const accountLimit = getAccountLimitForPlan(workspace.plan);
 
   const renderSidebarContent = () => (
-    <div className="flex flex-col justify-between h-full">
-      <div className="flex flex-col gap-6 overflow-y-auto">
+    <div className="flex flex-col h-full overflow-y-auto pr-1 scrollbar-thin">
+      <div className="flex flex-col gap-6">
         {/* Logo */}
-        <div className="flex items-center gap-2 px-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-purple-600 to-pink-500 flex items-center justify-center font-bold text-white shadow-lg shrink-0">
-            A
-          </div>
-          <span className="font-extrabold text-lg tracking-tight text-zinc-900 animate-fadeIn">
-            Auto Insta <span className="text-gradient">Flow</span>
+        <div className="flex items-center justify-between px-2 pt-1">
+          <span className="font-extrabold text-sm tracking-wider text-zinc-950 uppercase font-sans">
+            AUTOINSTAFLOW
           </span>
+          <button className="text-zinc-350 hover:text-zinc-655 transition">
+            <svg className="w-3.5 h-3.5 text-zinc-400 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+            </svg>
+          </button>
         </div>
 
-        {/* Account Selector */}
+        {/* Account Selector styled like Workspace Card */}
         <div className="relative">
           <button
             onClick={() => setDropdownOpen(!dropdownOpen)}
-            className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white border border-zinc-200 text-sm font-medium hover:bg-zinc-50 transition text-zinc-800 shadow-sm"
+            className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-xl bg-white hover:bg-zinc-50 border border-zinc-200 transition text-zinc-800 shadow-sm"
           >
-            <div className="flex items-center gap-2 overflow-hidden">
-              {activeAccount?.profile_picture_url ? (
-                <img
-                  src={activeAccount.profile_picture_url}
-                  alt={activeAccount.username}
-                  className="w-5 h-5 rounded-full object-cover border border-zinc-200 shrink-0"
-                />
-              ) : (
-                <svg className="w-4 h-4 text-pink-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-                  <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-                  <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+            <div className="flex items-center gap-2.5 overflow-hidden">
+              <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 flex items-center justify-center shrink-0">
+                <svg className="w-3.5 h-3.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
                 </svg>
-              )}
-              <span className="truncate">
-                {activeAccount ? `@${activeAccount.username}` : 'No Connected Account'}
-              </span>
+              </div>
+              <div className="flex flex-col items-start overflow-hidden text-left">
+                <span className="text-xs font-bold text-zinc-800 truncate">My Workspace</span>
+                <span className="text-[10px] text-zinc-450 font-semibold uppercase tracking-wide">
+                  {workspace.plan === 'free' ? 'Free Plan' : `${workspace.plan} Plan`}
+                </span>
+              </div>
             </div>
-            <ChevronDown className="w-4 h-4 text-zinc-450 shrink-0" />
+            <svg className="w-3.5 h-3.5 text-zinc-400 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 15L12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" />
+            </svg>
           </button>
-          <div className="flex justify-between items-center px-1 mt-1.5 text-[10px] text-zinc-400">
-            <span>Connected accounts:</span>
+          <div className="flex justify-between items-center px-1 mt-1 text-[9px] text-zinc-400">
+            <span>Accounts linked:</span>
             <span className="font-semibold text-zinc-600">{accounts.length} / {accountLimit}</span>
           </div>
 
@@ -187,23 +209,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     setActiveAccountId(acc.id);
                     setDropdownOpen(false);
                   }}
-                  className={`w-full text-left px-2 py-2 rounded-md text-xs transition flex items-center gap-2 ${acc.id === activeAccountId ? 'bg-purple-600 text-white font-bold' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                  className={`w-full text-left px-2 py-2 rounded-md text-xs transition flex items-center gap-2 ${acc.id === activeAccountId ? 'bg-zinc-950 text-white font-bold' : 'text-zinc-600 hover:bg-zinc-50'}`}
                 >
                   {acc.profile_picture_url ? (
-                    <img src={acc.profile_picture_url} alt={acc.username} className="w-6 h-6 rounded-full object-cover border border-zinc-200 shrink-0" />
+                    <img src={acc.profile_picture_url} alt={acc.username} className="w-5 h-5 rounded-full object-cover border border-zinc-200 shrink-0" />
                   ) : (
-                    <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 shrink-0" />
+                    <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 shrink-0" />
                   )}
                   <div className="flex flex-col gap-0 overflow-hidden">
                     <span className="truncate">@{acc.username}</span>
                     {acc.followers_count != null && (
-                      <span className={`text-[9px] font-semibold ${acc.id === activeAccountId ? 'text-purple-200' : 'text-zinc-400'}`}>
+                      <span className={`text-[8px] font-semibold ${acc.id === activeAccountId ? 'text-zinc-300' : 'text-zinc-400'}`}>
                         {acc.followers_count.toLocaleString()} followers
                       </span>
                     )}
                   </div>
                   {acc.token_status !== 'active' && (
-                    <span className="ml-auto bg-red-100 text-red-600 px-1 py-0.5 rounded text-[9px] font-bold shrink-0">Fix Token</span>
+                    <span className="ml-auto bg-red-100 text-red-600 px-1 py-0.5 rounded text-[8px] font-bold shrink-0">Fix</span>
                   )}
                 </button>
               ))}
@@ -223,55 +245,194 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           )}
         </div>
 
+        {/* New Automation Button */}
+        <Link 
+          href="/dashboard/automations/new"
+          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-[#d2ff00] hover:bg-[#c1f000] text-zinc-950 font-extrabold text-xs shadow-sm transition border border-zinc-950/15"
+        >
+          <Plus className="w-3.5 h-3.5 text-zinc-950 stroke-[3.5]" />
+          New Automation
+        </Link>
+
         {/* Navigation Links */}
         <nav className="flex flex-col gap-1">
-          {menuItems.map(item => {
-            const Icon = item.icon;
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${isActive ? 'bg-purple-50 border-l-2 border-purple-500 text-purple-700 font-semibold shadow-inner' : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100/50'}`}
-              >
-                <Icon className={`w-4 h-4 ${isActive ? 'text-purple-600' : 'text-zinc-450'}`} />
-                {item.name}
-              </Link>
-            );
-          })}
+          {/* Home */}
+          <Link
+            href="/dashboard/home"
+            className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition ${
+              pathname === '/dashboard/home'
+                ? 'bg-zinc-100 border border-zinc-950 text-zinc-950 font-bold'
+                : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'
+            }`}
+          >
+            <Home className="w-4 h-4" />
+            Home
+          </Link>
+
+          {/* Automations */}
+          <Link
+            href="/dashboard/automations"
+            className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition ${
+              pathname.startsWith('/dashboard/automations')
+                ? 'bg-zinc-100 border border-zinc-950 text-zinc-950 font-bold'
+                : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'
+            }`}
+          >
+            <Settings className="w-4 h-4" />
+            Automations
+          </Link>
+
+          {/* Templates */}
+          <Link
+            href="/dashboard/templates"
+            className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition ${
+              pathname === '/dashboard/templates'
+                ? 'bg-zinc-100 border border-zinc-950 text-zinc-950 font-bold'
+                : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'
+            }`}
+          >
+            <Layers className="w-4 h-4" />
+            Templates
+          </Link>
+
+          {/* Collapsible My Content */}
+          <div className="flex flex-col gap-0.5">
+            <button
+              onClick={() => setMyContentOpen(!myContentOpen)}
+              className="flex items-center justify-between w-full px-3 py-2 rounded-xl text-sm font-semibold text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50 transition"
+            >
+              <div className="flex items-center gap-3">
+                <FileText className="w-4 h-4" />
+                <span>My Content</span>
+              </div>
+              <ChevronDown className={`w-3.5 h-3.5 text-zinc-400 transition-transform ${myContentOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {myContentOpen && (
+              <div className="flex flex-col gap-0.5 pl-6 ml-4 border-l border-zinc-200 mt-0.5 animate-fadeIn">
+                <Suspense fallback={<div className="text-[10px] text-zinc-400 pl-3">Loading links...</div>}>
+                  <ContentLinks pathname={pathname} />
+                </Suspense>
+              </div>
+            )}
+          </div>
+
+          {/* Contacts */}
+          <Link
+            href="/dashboard/contacts"
+            className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition ${
+              pathname === '/dashboard/contacts'
+                ? 'bg-zinc-100 border border-zinc-950 text-zinc-950 font-bold'
+                : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            Contacts
+          </Link>
+
+          {/* Rewind */}
+          <Link
+            href="/dashboard/rewind"
+            className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition ${
+              pathname === '/dashboard/rewind'
+                ? 'bg-zinc-100 border border-zinc-950 text-zinc-950 font-bold'
+                : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'
+            }`}
+          >
+            <RefreshCcw className="w-4 h-4" />
+            Rewind
+          </Link>
+
+          {/* Collapsible Analytics */}
+          <div className="flex flex-col gap-0.5">
+            <button
+              onClick={() => setAnalyticsOpen(!analyticsOpen)}
+              className="flex items-center justify-between w-full px-3 py-2 rounded-xl text-sm font-semibold text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50 transition"
+            >
+              <div className="flex items-center gap-3">
+                <BarChart3 className="w-4 h-4" />
+                <span>Analytics</span>
+              </div>
+              <ChevronDown className={`w-3.5 h-3.5 text-zinc-400 transition-transform ${analyticsOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {analyticsOpen && (
+              <div className="flex flex-col gap-0.5 pl-6 ml-4 border-l border-zinc-200 mt-0.5 animate-fadeIn">
+                <Link
+                  href="/dashboard/analytics"
+                  className={`flex items-center gap-2 py-1.5 px-3 rounded-lg text-xs font-semibold transition ${
+                    pathname === '/dashboard/analytics'
+                      ? 'bg-zinc-100 border border-zinc-950 text-zinc-950 font-bold'
+                      : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'
+                  }`}
+                >
+                  Overview
+                </Link>
+              </div>
+            )}
+          </div>
+
+          {/* Support */}
+          <Link
+            href="/dashboard/support"
+            className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition ${
+              pathname === '/dashboard/support'
+                ? 'bg-zinc-100 border border-zinc-950 text-zinc-950 font-bold'
+                : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'
+            }`}
+          >
+            <HelpCircle className="w-4 h-4" />
+            Support
+          </Link>
+
+          {/* Billing & Add-ons */}
+          <Link
+            href="/dashboard/billing"
+            className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition ${
+              pathname === '/dashboard/billing'
+                ? 'bg-zinc-100 border border-zinc-950 text-zinc-950 font-bold'
+                : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'
+            }`}
+          >
+            <CreditCard className="w-4 h-4" />
+            Billing & Add-ons
+          </Link>
+
+          {/* Sandbox Simulator */}
+          <Link
+            href="/dashboard/simulator"
+            className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition ${
+              pathname === '/dashboard/simulator'
+                ? 'bg-zinc-100 border border-zinc-950 text-zinc-950 font-bold'
+                : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'
+            }`}
+          >
+            <Sparkles className="w-4 h-4 text-purple-500" />
+            Sandbox Simulator
+          </Link>
         </nav>
       </div>
 
       {/* Sidebar Footer Metrics */}
-      <div className="flex flex-col gap-4 border-t border-zinc-200 pt-4 mt-4">
+      <div className="flex flex-col gap-3 border-t border-zinc-200 pt-3 mt-3">
         {/* DM Quota */}
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-zinc-450 font-bold">DMs Sent Today</span>
-            <span className="text-zinc-700 font-extrabold">{dmsSentTodayCount}</span>
+        <div className="flex flex-col gap-1">
+          <div className="flex justify-between text-[11px] font-semibold text-zinc-500">
+            <span>DMs sent</span>
+            <span className="font-bold text-zinc-850">{totalUsed}/{totalLimit}</span>
           </div>
-          <div className="flex items-center justify-between text-xs mt-0.5">
-            <span className="text-zinc-455 font-bold">Monthly Quota</span>
-            <span className="text-zinc-700 font-extrabold">
-              {totalUsed.toLocaleString()} / {totalLimit.toLocaleString()}
-            </span>
+          <div className="w-full h-1 bg-zinc-100 rounded-full overflow-hidden border border-zinc-200">
+            <div className="h-full bg-[#d2ff00] rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
           </div>
-          <div className="w-full h-1.5 rounded-full bg-zinc-100 overflow-hidden border border-zinc-200">
-            <div 
-              className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all duration-500" 
-              style={{ width: `${pct}%` }}
-            />
+        </div>
+
+        {/* IG Accounts Quota */}
+        <div className="flex flex-col gap-1">
+          <div className="flex justify-between text-[11px] font-semibold text-zinc-500">
+            <span>IG accounts</span>
+            <span className="font-bold text-zinc-850">{accounts.length}/{accountLimit}</span>
           </div>
-          {workspace.dm_addon_credits > 0 && (
-            <div className="text-[10px] text-pink-600 font-semibold">
-              Includes +{workspace.dm_addon_credits.toLocaleString()} Add-On credits
-            </div>
-          )}
-          {pct >= 90 && (
-            <div className="text-[10px] text-yellow-600 font-semibold flex items-center gap-1">
-              <AlertTriangle className="w-3 h-3 shrink-0" /> Quota nearly exhausted!
-            </div>
-          )}
+          <div className="w-full h-1 bg-zinc-100 rounded-full overflow-hidden border border-zinc-200">
+            <div className="h-full bg-[#d2ff00] rounded-full transition-all duration-500" style={{ width: `${(accounts.length / accountLimit) * 100}%` }} />
+          </div>
         </div>
 
         {/* Upgrade Banner / CTA */}
@@ -280,7 +441,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             href="/dashboard/billing"
             className="w-full px-3 py-2 rounded-xl bg-purple-50 border border-purple-200 hover:bg-purple-100/50 transition flex items-center justify-center gap-1.5 text-xs text-purple-700 font-bold shadow-inner"
           >
-            <Zap className="w-3.5 h-3.5 text-yellow-500 shrink-0 animate-bounce" /> Upgrade to Pro
+            <Zap className="w-3.5 h-3.5 text-yellow-500 shrink-0" /> Upgrade to Pro
           </Link>
         ) : (
           <Link 
@@ -365,19 +526,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="flex-1 flex flex-col min-w-0 min-h-screen">
         {/* Top Upgrade Banner */}
         {workspace.plan === 'free' && !isBannerDismissed && (
-          <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-b border-purple-100 text-purple-800 px-6 py-2.5 flex items-center justify-between text-xs relative z-30 backdrop-blur-md">
+          <div className="bg-[#0b0c10] text-white px-6 py-2 flex items-center justify-between text-[11px] relative z-30 font-medium">
             <div className="flex items-center gap-2 pr-4">
-              <Sparkles className="w-4 h-4 text-purple-500 shrink-0" />
-              <span>You are currently on the <strong className="uppercase">Free Plan</strong> (gated: Email Gates, Follow Gates). Upgrade to unlock the full power!</span>
-            </div>
-            <div className="flex items-center gap-4 shrink-0">
-              <Link href="/dashboard/billing" className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded-lg font-bold transition shadow-sm">
-                Upgrade
+              <span>Upgrade to unlock every feature and accelerate your growth.</span>
+              <Link href="/dashboard/billing" className="bg-[#d2ff00] text-zinc-950 px-2.5 py-0.5 rounded-full font-extrabold text-[10px] hover:bg-[#c1f000] transition">
+                Try 14 Days For Free
               </Link>
-              <button onClick={dismissUpgradeBanner} className="text-zinc-400 hover:text-zinc-700 transition">
-                <X className="w-4 h-4" />
-              </button>
+              <Link href="/dashboard/billing" className="text-white hover:text-zinc-300 underline font-bold ml-2">
+                View pricing
+              </Link>
             </div>
+            <button onClick={dismissUpgradeBanner} className="text-zinc-400 hover:text-white transition">
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
         )}
 
