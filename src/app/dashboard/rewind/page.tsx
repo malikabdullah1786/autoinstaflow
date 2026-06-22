@@ -38,7 +38,12 @@ export default function RewindPage() {
   // Step 4 states (Execution)
   const [executing, setExecuting] = useState(false);
   const [execProgress, setExecProgress] = useState(0);
-  const [executionResult, setExecutionResult] = useState<{ dmsSent: number; skipped: number; quotaConsumed: number } | null>(null);
+  const [executionResult, setExecutionResult] = useState<{
+    dmsSent: number;
+    skipped: number;
+    quotaConsumed: number;
+    details?: { username: string; commentText: string; status: 'sent' | 'skipped_duplicate' | 'skipped_no_match' | 'skipped_quota'; reason: string }[];
+  } | null>(null);
 
   // Real comments from API
   const [realComments, setRealComments] = useState<any[]>([]);
@@ -163,7 +168,8 @@ export default function RewindPage() {
     setExecutionResult({
       dmsSent,
       skipped: recipientsCount - dmsSent,
-      quotaConsumed: dmsSent
+      quotaConsumed: dmsSent,
+      details: res.results
     });
     setStep(4);
   };
@@ -424,12 +430,46 @@ export default function RewindPage() {
               </div>
             </div>
 
-            <button
-              onClick={handleReset}
-              className="w-max px-4 py-2.5 rounded-lg border border-zinc-200 text-xs font-bold text-zinc-700 bg-white hover:bg-zinc-50 transition flex items-center gap-1.5 mt-2 shadow-sm"
-            >
-              <RefreshCw className="w-3.5 h-3.5" /> Start Another Scan
-            </button>
+            <div className="flex items-center justify-between mt-2">
+              <button
+                onClick={handleReset}
+                className="px-4 py-2.5 rounded-lg border border-zinc-200 text-xs font-bold text-zinc-700 bg-white hover:bg-zinc-50 transition flex items-center gap-1.5 shadow-sm"
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Start Another Scan
+              </button>
+            </div>
+
+            {executionResult?.details && executionResult.details.length > 0 && (
+              <div className="flex flex-col gap-2 mt-4 border-t border-zinc-150 pt-4">
+                <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Processed Comments Detail</h4>
+                <div className="flex flex-col gap-2 max-h-60 overflow-y-auto pr-1">
+                  {executionResult.details.map((item, idx) => (
+                    <div key={idx} className="p-3 rounded-lg bg-zinc-50 border border-zinc-250/60 flex justify-between gap-3 text-xs shadow-sm">
+                      <div className="flex flex-col gap-0.5 min-w-0">
+                        <span className="font-bold text-zinc-900">@{item.username}</span>
+                        <span className="text-zinc-505 truncate max-w-[280px]">"{item.commentText}"</span>
+                      </div>
+                      <div className="flex flex-col items-end justify-center">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                          item.status === 'sent' ? 'bg-green-50 text-green-750 border-green-200' :
+                          item.status === 'skipped_duplicate' ? 'bg-amber-50/70 text-amber-750 border-amber-200' :
+                          item.status === 'skipped_quota' ? 'bg-red-55/10 text-red-750 border-red-200' :
+                          item.status === 'dm_failed' ? 'bg-red-50 text-red-700 border-red-200' :
+                          'bg-zinc-100 text-zinc-500 border-zinc-200'
+                        }`}>
+                          {item.status === 'sent' ? 'DM Sent' :
+                           item.status === 'skipped_duplicate' ? 'Duplicate (Skipped)' :
+                           item.status === 'skipped_quota' ? 'Quota Exceeded' :
+                           item.status === 'dm_failed' ? 'Failed' :
+                           'Skipped'}
+                        </span>
+                        <span className="text-[9px] text-zinc-450 mt-0.5">{item.reason}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Historical Logs List */}

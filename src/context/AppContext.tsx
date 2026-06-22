@@ -69,7 +69,12 @@ interface AppContextType {
     automationId: string,
     postId: string,
     comments: { username: string; text: string; id: string }[]
-  ) => Promise<{ success: boolean; dmsSent: number; error?: string }>;
+  ) => Promise<{
+    success: boolean;
+    dmsSent: number;
+    error?: string;
+    results?: { username: string; commentText: string; status: 'sent' | 'skipped_duplicate' | 'skipped_no_match' | 'skipped_quota'; reason: string }[];
+  }>;
   purchaseAddon: (packSize: number) => Promise<void>;
   upgradePlan: (plan: PlanType, billingCycle: 'monthly' | 'yearly') => Promise<void>;
   dismissUpgradeBanner: () => void;
@@ -1287,8 +1292,56 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return keywordMatch && !alreadySent;
     });
 
+    const executionOutcomes: Record<string, { success: boolean; error?: string }> = {};
+
+    // Helper to generate run report
+    const buildReport = () => {
+      return commentsList.map(c => {
+        const keywordMatch = checkKeywordMatch(c.text, aut.trigger_config.keywords);
+        const igUserId = `ig_user_${c.username.toLowerCase()}`;
+        
+        const alreadySent = events.some(
+          ev =>
+            ev.automation_id === aut.id &&
+            ev.instagram_user_id === igUserId &&
+            ev.event_type === 'dm_sent'
+        );
+
+        let status: 'sent' | 'skipped_duplicate' | 'skipped_no_match' | 'skipped_quota' | 'dm_failed' = 'skipped_no_match';
+        let reason = 'Comment does not match automation keywords';
+
+        if (keywordMatch) {
+          if (alreadySent) {
+            status = 'skipped_duplicate';
+            reason = 'User already received a DM from this automation';
+          } else {
+            const outcome = executionOutcomes[c.id];
+            if (outcome) {
+              if (outcome.success) {
+                status = 'sent';
+                reason = 'DM transmitted successfully';
+              } else {
+                status = 'dm_failed';
+                reason = `Failed to send DM: ${outcome.error}`;
+              }
+            } else {
+              status = 'skipped_quota';
+              reason = 'Quota exceeded: DM could not be sent';
+            }
+          }
+        }
+
+        return {
+          username: c.username,
+          commentText: c.text,
+          status,
+          reason
+        };
+      });
+    };
+
     if (matchedComments.length === 0) {
-      return { success: true, dmsSent: 0 };
+      return { success: true, dmsSent: 0, results: buildReport() };
     }
 
     const quota = getRemainingQuota(workspace);
@@ -1299,7 +1352,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     if (toSendCount === 0) {
-      return { success: false, dmsSent: 0, error: 'QUOTA_EXHAUSTED' };
+      return { success: false, dmsSent: 0, error: 'QUOTA_EXHAUSTED', results: buildReport() };
     }
 
     let newDMSentCurrent = workspace.dm_sent_current_period;
@@ -1312,14 +1365,59 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const dbEventsToInsert: any[] = [];
     const dbContactsToUpsert: any[] = [];
 
+    // Find account credentials for the automation
+    const acc = accounts.find(a => a.id === aut.instagram_account_id);
+    const accessToken = acc?.access_token;
+    const igId = acc?.instagram_user_id;
+
     for (let i = 0; i < toSendCount; i++) {
       const comment = matchedComments[i];
       const igUserId = `ig_user_${comment.username.toLowerCase()}`;
 
-      if (newDMSentCurrent < workspace.dm_quota_monthly) {
-        newDMSentCurrent += 1;
-      } else {
-        newAddonCredits -= 1;
+      // Call Meta API to send the DM private reply if real account is connected
+      let sendSuccess = true;
+      let sendErrorMsg = '';
+
+      if (accessToken && igId && isSupabaseConfigured()) {
+        try {
+          const messageText = `${aut.action_config.message} ${aut.action_config.url}`.trim();
+          const response = await fetch(`https://graph.instagram.com/v20.0/${igId}/messages`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${accessToken}`
+            },
+            body: JSON.stringify({
+              recipient: {
+                comment_id: comment.id
+              },
+              message: {
+                text: messageText
+              }
+            })
+          });
+          const resData = await response.json();
+          if (!response.ok || resData.error) {
+            console.error("Meta API private reply failed:", resData.error);
+            sendSuccess = false;
+            sendErrorMsg = resData.error?.message || `HTTP ${response.status}: ${JSON.stringify(resData)}`;
+          }
+        } catch (e: any) {
+          console.error("Failed to call Meta API for private reply:", e);
+          sendSuccess = false;
+          sendErrorMsg = e.message || 'Network error';
+        }
+      }
+
+      executionOutcomes[comment.id] = { success: sendSuccess, error: sendErrorMsg };
+
+      if (sendSuccess) {
+        if (newDMSentCurrent < workspace.dm_quota_monthly) {
+          newDMSentCurrent += 1;
+        } else {
+          newAddonCredits -= 1;
+        }
+        actualSent += 1;
       }
 
       const existing = updatedContacts.find(c => c.instagram_user_id === igUserId && c.workspace_id === workspace.id);
@@ -1352,7 +1450,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const eventPayload = {
         automation_id: aut.id,
         workspace_id: workspace.id,
-        event_type: 'dm_sent',
+        event_type: sendSuccess ? 'dm_sent' : 'dm_failed',
         instagram_user_id: igUserId,
         instagram_username: comment.username,
         metadata: {
@@ -1360,6 +1458,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           rewind: true,
           message: aut.action_config.message,
           url: aut.action_config.url,
+          ...(sendSuccess ? {} : { error: sendErrorMsg })
         },
         occurred_at: new Date().toISOString(),
       };
@@ -1370,8 +1469,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: `ev_${Math.random().toString(36).substr(2, 9)}`,
         ...eventPayload
       } as AutomationEvent);
-
-      actualSent += 1;
     }
 
     if (isSupabaseConfigured()) {
@@ -1449,7 +1546,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
     );
 
-    return { success: true, dmsSent: actualSent };
+    return { success: true, dmsSent: actualSent, results: buildReport() };
   };
 
   const purchaseAddon = async (packSize: number) => {
