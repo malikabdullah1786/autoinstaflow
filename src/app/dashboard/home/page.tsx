@@ -13,7 +13,6 @@ import {
   Layers, 
   CheckCircle,
   AlertCircle,
-  Moon,
   Plus
 } from 'lucide-react';
 import { getAccountLimitForPlan } from '@/lib/db';
@@ -100,15 +99,6 @@ export default function HomeDashboard() {
 
         {activeAccount && (
           <div className="flex items-center gap-3">
-            <button 
-              onClick={() => {
-                document.documentElement.classList.toggle('dark');
-              }}
-              className="p-2.5 rounded-xl border border-zinc-200 bg-white shadow-sm hover:bg-zinc-50 transition text-zinc-600 flex items-center justify-center" 
-              title="Toggle Dark Mode"
-            >
-              <Moon className="w-4 h-4" />
-            </button>
             <Link href="/dashboard/automations/new" className="btn-gradient px-4 py-2.5 flex items-center gap-1.5 text-sm">
               <Plus className="w-4 h-4" /> Create Automation
             </Link>
