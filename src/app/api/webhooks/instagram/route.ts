@@ -380,19 +380,48 @@ export async function POST(req: Request) {
             }
 
             // Fetch the active email gate automation for this account to release the gated link
-            const { data: automations, error: autError } = await supabase
-              .from('automations')
-              .select('*')
-              .eq('instagram_account_id', account.id)
-              .eq('status', 'live')
-              .eq('action_type', 'email_gate');
+            let matchedAut = null;
 
-            if (autError || !automations || automations.length === 0) {
-              console.log('No live email gate automations found for account:', account.id);
-              continue;
+            // Try to find the most recent email-gate prompt sent to this user
+            const { data: lastPromptEvent } = await supabase
+              .from('automation_events')
+              .select('automation_id')
+              .eq('instagram_user_id', igUserId)
+              .eq('event_type', 'dm_sent')
+              .order('occurred_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            if (lastPromptEvent && lastPromptEvent.automation_id) {
+              const { data: aut } = await supabase
+                .from('automations')
+                .select('*')
+                .eq('id', lastPromptEvent.automation_id)
+                .eq('status', 'live')
+                .maybeSingle();
+              if (aut) {
+                matchedAut = aut;
+              }
             }
 
-            const matchedAut = automations[0];
+            // Fallback: if no recent event is found, fallback to the first active email gate automation
+            if (!matchedAut) {
+              const { data: automations } = await supabase
+                .from('automations')
+                .select('*')
+                .eq('instagram_account_id', account.id)
+                .eq('status', 'live')
+                .eq('action_type', 'email_gate');
+
+              if (automations && automations.length > 0) {
+                matchedAut = automations[0];
+              }
+            }
+
+            if (!matchedAut) {
+              console.log('No matching email gate automation found for user:', igUserId);
+              continue;
+            }
 
             // Update contact email in database
             await supabase.from('contacts').update({

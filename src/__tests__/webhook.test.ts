@@ -30,6 +30,10 @@ const { mockDbState, mockSupabase } = vi.hoisted(() => {
       state.queries.push({ method: 'limit', args });
       return mockQueryBuilder;
     }),
+    order: vi.fn().mockImplementation((...args) => {
+      state.queries.push({ method: 'order', args });
+      return mockQueryBuilder;
+    }),
     single: vi.fn().mockImplementation(() => {
       state.queries.push({ method: 'single' });
       return Promise.resolve({ data: Array.isArray(state.data) ? state.data[0] : state.data, error: state.error });
@@ -408,28 +412,29 @@ describe('Instagram Webhook Handler', () => {
       };
       const mockWorkspace = { id: 'ws_123', dm_quota_monthly: 500, dm_sent_current_period: 1, dm_addon_credits: 0 };
 
-      let callIndex = 0;
-      vi.spyOn(mockSupabase, 'from').mockImplementation(() => {
+      vi.spyOn(mockSupabase, 'from').mockImplementation((table) => {
         const mockQB = {
           select: vi.fn().mockImplementation(() => mockQB),
           eq: vi.fn().mockImplementation(() => mockQB),
           gt: vi.fn().mockImplementation(() => mockQB),
           limit: vi.fn().mockImplementation(() => mockQB),
+          order: vi.fn().mockImplementation(() => mockQB),
           single: vi.fn().mockImplementation(() => {
-            callIndex++;
-            if (callIndex === 1) return Promise.resolve({ data: mockAccount, error: null });
-            if (callIndex === 3) return Promise.resolve({ data: mockWorkspace, error: null });
+            if (table === 'instagram_accounts') return Promise.resolve({ data: mockAccount, error: null });
+            if (table === 'workspaces') return Promise.resolve({ data: mockWorkspace, error: null });
             return Promise.resolve({ data: null, error: 'Not found' });
           }),
           maybeSingle: vi.fn().mockImplementation(() => {
-            callIndex++;
-            if (callIndex === 2) return Promise.resolve({ data: mockContact, error: null }); // contact lookup
+            if (table === 'contacts') return Promise.resolve({ data: mockContact, error: null });
+            if (table === 'automation_events') return Promise.resolve({ data: { automation_id: 'aut_email_123' }, error: null });
+            if (table === 'automations') return Promise.resolve({ data: mockEmailAutomation, error: null });
             return Promise.resolve({ data: null, error: null });
           }),
           insert: vi.fn().mockImplementation(() => mockQB),
           update: vi.fn().mockImplementation(() => mockQB),
           then: vi.fn().mockImplementation((onfulfilled) => {
-            return Promise.resolve({ data: [mockEmailAutomation], error: null }).then(onfulfilled);
+            if (table === 'automations') return Promise.resolve({ data: [mockEmailAutomation], error: null }).then(onfulfilled);
+            return Promise.resolve({ data: [], error: null }).then(onfulfilled);
           })
         };
         return mockQB as any;
