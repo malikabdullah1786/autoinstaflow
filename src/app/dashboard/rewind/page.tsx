@@ -42,7 +42,7 @@ export default function RewindPage() {
     dmsSent: number;
     skipped: number;
     quotaConsumed: number;
-    details?: { username: string; commentText: string; status: 'sent' | 'skipped_duplicate' | 'skipped_no_match' | 'skipped_quota'; reason: string }[];
+    details?: { username: string; commentText: string; status: 'sent' | 'skipped_duplicate' | 'skipped_no_match' | 'skipped_quota' | 'dm_failed'; reason: string }[];
   } | null>(null);
 
   // Real comments from API

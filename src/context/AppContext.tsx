@@ -73,7 +73,7 @@ interface AppContextType {
     success: boolean;
     dmsSent: number;
     error?: string;
-    results?: { username: string; commentText: string; status: 'sent' | 'skipped_duplicate' | 'skipped_no_match' | 'skipped_quota'; reason: string }[];
+    results?: { username: string; commentText: string; status: 'sent' | 'skipped_duplicate' | 'skipped_no_match' | 'skipped_quota' | 'dm_failed'; reason: string }[];
   }>;
   purchaseAddon: (packSize: number) => Promise<void>;
   upgradePlan: (plan: PlanType, billingCycle: 'monthly' | 'yearly') => Promise<void>;
