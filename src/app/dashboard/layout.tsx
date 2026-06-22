@@ -176,15 +176,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-xl bg-white hover:bg-zinc-50 border border-zinc-200 transition text-zinc-800 shadow-sm"
           >
             <div className="flex items-center gap-2.5 overflow-hidden">
-              <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 flex items-center justify-center shrink-0">
-                <svg className="w-3.5 h-3.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-                </svg>
-              </div>
+              {activeAccount ? (
+                activeAccount.profile_picture_url ? (
+                  <img 
+                    src={activeAccount.profile_picture_url} 
+                    alt={activeAccount.username} 
+                    className="w-7 h-7 rounded-full object-cover border border-zinc-200 shrink-0" 
+                  />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 flex items-center justify-center shrink-0 text-[10px] font-bold text-white uppercase">
+                    {activeAccount.username.substring(0, 2)}
+                  </div>
+                )
+              ) : (
+                <div className="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center shrink-0 text-purple-600">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+                  </svg>
+                </div>
+              )}
               <div className="flex flex-col items-start overflow-hidden text-left">
-                <span className="text-xs font-bold text-zinc-800 truncate">My Workspace</span>
-                <span className="text-[10px] text-zinc-450 font-semibold uppercase tracking-wide">
-                  {workspace.plan === 'free' ? 'Free Plan' : `${workspace.plan} Plan`}
+                <span className="text-xs font-bold text-zinc-850 truncate">
+                  {activeAccount ? `@${activeAccount.username}` : 'Connect Account'}
+                </span>
+                <span className="text-[9px] text-zinc-450 font-semibold tracking-wide truncate">
+                  {activeAccount 
+                    ? `${activeAccount.followers_count?.toLocaleString() ?? 0} followers` 
+                    : 'No linked account'}
                 </span>
               </div>
             </div>
