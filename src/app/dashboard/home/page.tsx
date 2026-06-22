@@ -33,7 +33,7 @@ export default function HomeDashboard() {
   const [simUsername, setSimUsername] = useState('john_doe');
   const [simText, setSimText] = useState('LINK please');
   const [simTrigger, setSimTrigger] = useState<'comment' | 'dm' | 'story_reply'>('comment');
-  const [simPostId, setSimPostId] = useState(MOCK_IG_ITEMS[0].id);
+  const [simPostId, setSimPostId] = useState('post_101');
   const [simIsFollowing, setSimIsFollowing] = useState(true);
   const [simEmail, setSimEmail] = useState('');
   const [simOutcome, setSimOutcome] = useState<{ success: boolean; outcome: string; details?: string } | null>(null);
@@ -143,6 +143,8 @@ export default function HomeDashboard() {
         </div>
       </div>
 
+      {/* Two Column Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left/Middle Column: Account Status & Automations */}
         <div className="lg:col-span-2 flex flex-col gap-6">
           <div className="flex flex-col gap-2">
@@ -207,7 +209,7 @@ export default function HomeDashboard() {
                     >
                       <div className="flex flex-col gap-0.5">
                         <span className="text-sm font-bold text-zinc-900">{auto.name}</span>
-                        <span className="text-[10px] text-zinc-400 uppercase font-semibold">{auto.trigger_type} → {auto.action_type}</span>
+                        <span className="text-[10px] text-zinc-400 uppercase font-semibold">{auto.trigger_type}{' → '}{auto.action_type}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">LIVE</span>
@@ -223,7 +225,7 @@ export default function HomeDashboard() {
                     >
                       <div className="flex flex-col gap-0.5">
                         <span className="text-sm font-bold text-zinc-900">{auto.name}</span>
-                        <span className="text-[10px] text-zinc-400 uppercase font-semibold">{auto.trigger_type} → {auto.action_type}</span>
+                        <span className="text-[10px] text-zinc-400 uppercase font-semibold">{auto.trigger_type}{' → '}{auto.action_type}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500 border border-zinc-200">PAUSED</span>
@@ -289,16 +291,15 @@ export default function HomeDashboard() {
 
                   {simTrigger === 'comment' && (
                     <div className="flex flex-col gap-1">
-                      <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide">On Post</label>
-                      <select 
+                      <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide">Post ID / Media ID</label>
+                      <input 
+                        type="text"
+                        required
                         value={simPostId}
                         onChange={(e) => setSimPostId(e.target.value)}
                         className="glass-input text-xs"
-                      >
-                        {igPosts.map(p => (
-                          <option key={p.id} value={p.id}>Post {p.id.split('_')[1]}</option>
-                        ))}
-                      </select>
+                        placeholder="e.g. post_101"
+                      />
                     </div>
                   )}
                 </div>

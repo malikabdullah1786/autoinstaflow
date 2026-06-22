@@ -78,7 +78,7 @@ export default function MyContentPage() {
                 <div className="flex flex-col gap-1">
                   <span className="text-sm font-bold text-zinc-900 group-hover:text-purple-700 transition">{auto.name}</span>
                   <span className="text-[10px] text-zinc-400 uppercase font-semibold tracking-wide">
-                    {auto.trigger_type} → {auto.action_type}
+                    {auto.trigger_type}{' → '}{auto.action_type}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">

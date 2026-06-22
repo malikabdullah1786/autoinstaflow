@@ -44,6 +44,10 @@ interface AppContextType {
   linkRealInstagramAccount: (accountData: {
     instagramUserId: string;
     username: string;
+    fullName?: string;
+    profilePicUrl?: string | null;
+    followersCount?: number;
+    mediaCount?: number;
     accessToken: string;
     tokenExpiresAt: string;
   }) => Promise<{ success: boolean; error?: string }>;
