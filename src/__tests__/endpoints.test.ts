@@ -43,13 +43,20 @@ describe('Instagram API Endpoints', () => {
   const originalEnv = { ...process.env };
 
   beforeAll(() => {
-    global.fetch = vi.fn().mockImplementation(() =>
-      Promise.resolve({
+    global.fetch = vi.fn().mockImplementation((url: any) => {
+      const urlStr = String(url || '');
+      let responseBody = mockFetchResponse;
+      if (urlStr.includes('/me/stories')) {
+        responseBody = mockFetchResponse?.stories || { data: [] };
+      } else if (urlStr.includes('/me/media')) {
+        responseBody = mockFetchResponse?.posts ? { data: mockFetchResponse.posts } : mockFetchResponse;
+      }
+      return Promise.resolve({
         status: mockFetchStatus,
         ok: mockFetchStatus >= 200 && mockFetchStatus < 300,
-        json: () => Promise.resolve(mockFetchResponse),
-      } as Response)
-    );
+        json: () => Promise.resolve(responseBody),
+      } as Response);
+    });
   });
 
   afterAll(() => {
@@ -286,6 +293,51 @@ describe('Instagram API Endpoints', () => {
       expect(data.posts[1].id).toBe('reel_2');
       expect(data.posts[1].type).toBe('reel');
       expect(data.posts[1].thumbnail).toBe('https://media.url/2_thumb.jpg');
+    });
+
+    it('should return 200 with both mapped posts and stories', async () => {
+      mockDbState.data = {
+        access_token: 'valid_token',
+        token_status: 'active',
+        instagram_user_id: 'user_123',
+      };
+      mockFetchResponse = {
+        posts: [
+          {
+            id: 'post_1',
+            caption: 'First post #fun',
+            media_product_type: 'FEED',
+            media_type: 'IMAGE',
+            media_url: 'https://media.url/1.jpg',
+            permalink: 'https://instagram.com/p/1',
+            comments_count: 10,
+            like_count: 100,
+            timestamp: '2026-06-20T10:00:00Z',
+          }
+        ],
+        stories: {
+          data: [
+            {
+              id: 'story_9',
+              caption: 'My Active Story',
+              media_type: 'IMAGE',
+              media_url: 'https://media.url/story9.jpg',
+              permalink: 'https://instagram.com/stories/9',
+              timestamp: '2026-06-22T12:00:00Z'
+            }
+          ]
+        }
+      };
+      const req = new Request('http://localhost/api/instagram/media?accountId=acc_123');
+      const res = await GET_media(req);
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.success).toBe(true);
+      expect(data.posts).toHaveLength(2);
+      expect(data.posts[0].id).toBe('post_1');
+      expect(data.posts[0].type).toBe('post');
+      expect(data.posts[1].id).toBe('story_9');
+      expect(data.posts[1].type).toBe('story');
     });
   });
 

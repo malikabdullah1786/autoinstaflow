@@ -30,12 +30,33 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Access token is invalid or expired.' }, { status: 400 });
     }
 
-    // 2. Fetch media from Instagram Graph API on graph.instagram.com
-    // fields: id, caption, media_type, media_product_type, media_url, permalink, thumbnail_url, timestamp, comments_count, like_count
+    // 2. Fetch media & stories from Instagram Graph API on graph.instagram.com
     const mediaUrl = `https://graph.instagram.com/me/media?fields=id,caption,media_type,media_product_type,media_url,permalink,thumbnail_url,timestamp,comments_count,like_count&limit=20&access_token=${account.access_token}`;
-    
-    const mediaRes = await fetch(mediaUrl);
+    const storiesUrl = `https://graph.instagram.com/me/stories?fields=id,caption,media_type,media_url,permalink,thumbnail_url,timestamp&access_token=${account.access_token}`;
+
+    const [mediaRes, storiesRes] = await Promise.all([
+      fetch(mediaUrl),
+      fetch(storiesUrl).catch(err => {
+        console.error("Failed to fetch stories:", err);
+        return null;
+      })
+    ]);
+
     const mediaData = await mediaRes.json();
+    let storiesData = { data: [] };
+
+    if (storiesRes) {
+      try {
+        const parsed = await storiesRes.json();
+        if (parsed && !parsed.error) {
+          storiesData = parsed;
+        } else if (parsed && parsed.error) {
+          console.warn("Meta stories fetch returned API error:", parsed.error);
+        }
+      } catch (e) {
+        console.error("Failed to parse stories response:", e);
+      }
+    }
 
     if (mediaData.error) {
       console.error("Meta media fetch failed:", mediaData.error);
@@ -59,9 +80,23 @@ export async function GET(req: Request) {
       commentsList: [] // Comments will be filled when simulated or fetched
     }));
 
+    const stories = (storiesData.data || []).map((item: any) => ({
+      id: item.id,
+      caption: item.caption || 'Active Story',
+      type: 'story',
+      mediaUrl: item.media_url || '',
+      permalink: item.permalink || '',
+      thumbnailUrl: item.thumbnail_url || item.media_url || '',
+      thumbnail: item.thumbnail_url || item.media_url || '',
+      commentsCount: 0,
+      likeCount: 0,
+      publishedAt: item.timestamp || new Date().toISOString(),
+      commentsList: []
+    }));
+
     return NextResponse.json({
       success: true,
-      posts
+      posts: [...posts, ...stories]
     });
 
   } catch (e: any) {
