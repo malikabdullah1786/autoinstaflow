@@ -37,6 +37,7 @@ export const AutomationBuilder: React.FC<AutomationBuilderProps> = ({ initialDat
   // Action configs
   const [message, setMessage] = useState(initialData?.action_config.message || 'Hey! Here is the link you requested:');
   const [url, setUrl] = useState(initialData?.action_config.url || 'https://');
+  const [commentReply, setCommentReply] = useState(initialData?.action_config.comment_reply || '');
   
   // Feedback
   const [validationError, setValidationError] = useState('');
@@ -108,6 +109,7 @@ export const AutomationBuilder: React.FC<AutomationBuilderProps> = ({ initialDat
       action_config: {
         message,
         url,
+        comment_reply: triggerType === 'comment' ? commentReply : undefined,
         gate: actionType === 'email_gate' ? 'email' : actionType === 'follow_gate' ? 'follow' : null,
       },
       status: initialData?.status || 'paused',
@@ -299,16 +301,31 @@ export const AutomationBuilder: React.FC<AutomationBuilderProps> = ({ initialDat
 
             {/* Message Body & Link */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-zinc-500">Direct Message Body</label>
-                <textarea
-                  required
-                  rows={4}
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Hey! Thanks for commenting. Here is the direct link..."
-                  className="glass-input text-xs resize-none"
-                />
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-zinc-500">Direct Message Body</label>
+                  <textarea
+                    required
+                    rows={4}
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    placeholder="Hey! Thanks for commenting. Here is the direct link..."
+                    className="glass-input text-xs resize-none"
+                  />
+                </div>
+
+                {triggerType === 'comment' && (
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-zinc-500">Public Comment Reply Message (Optional)</label>
+                    <input
+                      type="text"
+                      value={commentReply}
+                      onChange={(e) => setCommentReply(e.target.value)}
+                      placeholder="e.g. Sent you a DM! Check your inbox 📩"
+                      className="glass-input text-xs"
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-col justify-between gap-4">

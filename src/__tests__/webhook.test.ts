@@ -674,5 +674,181 @@ describe('Instagram Webhook Handler', () => {
       const data = await res.json();
       expect(data.success).toBe(true);
     });
+
+    it('should execute public comment reply when configured', async () => {
+      const mockAccount = { id: 'acc_123', workspace_id: 'ws_123', instagram_user_id: '123456789', access_token: 'tok_123' };
+      const mockAutomation = {
+        id: 'aut_pub_123',
+        workspace_id: 'ws_123',
+        instagram_account_id: 'acc_123',
+        name: 'Public Reply Test',
+        status: 'live',
+        trigger_type: 'comment',
+        action_type: 'send_dm',
+        action_config: { message: 'Inbox check!', url: 'https://example.com', comment_reply: 'Sent you a DM! 📩' },
+        dm_sent_count: 0
+      };
+      const mockWorkspace = { id: 'ws_123', dm_quota_monthly: 500, dm_sent_current_period: 0, dm_addon_credits: 0 };
+
+      vi.spyOn(mockSupabase, 'from').mockImplementation((table) => {
+        const mockQB = {
+          select: vi.fn().mockImplementation(() => mockQB),
+          eq: vi.fn().mockImplementation(() => mockQB),
+          gt: vi.fn().mockImplementation(() => mockQB),
+          limit: vi.fn().mockImplementation(() => mockQB),
+          single: vi.fn().mockImplementation(() => {
+            if (table === 'instagram_accounts') return Promise.resolve({ data: mockAccount, error: null });
+            if (table === 'workspaces') return Promise.resolve({ data: mockWorkspace, error: null });
+            return Promise.resolve({ data: null, error: 'Not found' });
+          }),
+          maybeSingle: vi.fn().mockImplementation(() => Promise.resolve({ data: null, error: null })),
+          insert: vi.fn().mockImplementation(() => mockQB),
+          update: vi.fn().mockImplementation(() => mockQB),
+          then: vi.fn().mockImplementation((onfulfilled) => {
+            return Promise.resolve({ data: [mockAutomation], error: null }).then(onfulfilled);
+          })
+        };
+        return mockQB as any;
+      });
+
+      const fetchSpy = vi.fn().mockImplementation(() => {
+        return Promise.resolve({
+          status: 200,
+          ok: true,
+          json: () => Promise.resolve({ success: true })
+        } as Response);
+      });
+      global.fetch = fetchSpy;
+
+      const payload = JSON.stringify({
+        object: 'instagram',
+        entry: [
+          {
+            id: '123456789',
+            time: 1600000000,
+            changes: [
+              {
+                field: 'comments',
+                value: {
+                  id: 'comment_999',
+                  text: 'info',
+                  from: { id: 'sender_id_123', username: 'john_doe' },
+                  media: { id: 'media_123' }
+                }
+              }
+            ]
+          }
+        ]
+      });
+
+      const req = new Request('http://localhost/api/webhooks/instagram', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-hub-signature-256': signPayload(payload, 'secret_key')
+        },
+        body: payload
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.success).toBe(true);
+
+      // Verify that the comments replies endpoint was called to post the public reply
+      const replyCall = fetchSpy.mock.calls.find(call => call[0].includes('/comment_999/replies'));
+      expect(replyCall).toBeDefined();
+    });
+
+    it('should trigger a new DM keyword automation successfully from a DM/story webhook', async () => {
+      const mockAccount = { id: 'acc_123', workspace_id: 'ws_123', instagram_user_id: '123456789', access_token: 'tok_123' };
+      const mockDMAutomation = {
+        id: 'aut_dm_123',
+        workspace_id: 'ws_123',
+        instagram_account_id: 'acc_123',
+        name: 'DM Magnet',
+        status: 'live',
+        trigger_type: 'dm',
+        trigger_config: { keywords: ['guide', 'ebook'] },
+        action_type: 'send_dm',
+        action_config: { message: 'Here is your ebook guide:', url: 'https://example.com/guide.pdf' },
+        dm_sent_count: 0
+      };
+      const mockWorkspace = { id: 'ws_123', dm_quota_monthly: 500, dm_sent_current_period: 0, dm_addon_credits: 0 };
+      const mockContact = { id: 'con_123', workspace_id: 'ws_123', instagram_user_id: 'ig_user_john_doe', email: 'john@example.com' };
+
+      vi.spyOn(mockSupabase, 'from').mockImplementation((table) => {
+        const mockQB = {
+          select: vi.fn().mockImplementation(() => mockQB),
+          eq: vi.fn().mockImplementation(() => mockQB),
+          gt: vi.fn().mockImplementation(() => mockQB),
+          limit: vi.fn().mockImplementation(() => mockQB),
+          single: vi.fn().mockImplementation(() => {
+            if (table === 'instagram_accounts') return Promise.resolve({ data: mockAccount, error: null });
+            if (table === 'workspaces') return Promise.resolve({ data: mockWorkspace, error: null });
+            return Promise.resolve({ data: null, error: 'Not found' });
+          }),
+          maybeSingle: vi.fn().mockImplementation(() => {
+            if (table === 'contacts') return Promise.resolve({ data: mockContact, error: null });
+            return Promise.resolve({ data: null, error: null });
+          }),
+          insert: vi.fn().mockImplementation(() => mockQB),
+          update: vi.fn().mockImplementation(() => mockQB),
+          then: vi.fn().mockImplementation((onfulfilled) => {
+            if (table === 'automations') return Promise.resolve({ data: [mockDMAutomation], error: null }).then(onfulfilled);
+            return Promise.resolve({ data: [], error: null }).then(onfulfilled);
+          })
+        };
+        return mockQB as any;
+      });
+
+      const fetchSpy = vi.fn().mockImplementation(() => {
+        return Promise.resolve({
+          status: 200,
+          ok: true,
+          json: () => Promise.resolve({ username: 'john_doe', is_user_follow_business: true })
+        } as Response);
+      });
+      global.fetch = fetchSpy;
+
+      const dmPayload = JSON.stringify({
+        object: 'instagram',
+        entry: [
+          {
+            id: '123456789',
+            time: 1600000000,
+            messaging: [
+              {
+                sender: { id: 'sender_dm_user' },
+                recipient: { id: '123456789' },
+                timestamp: 1600000000,
+                message: {
+                  mid: 'mid_dm_333',
+                  text: 'send me the ebook please'
+                }
+              }
+            ]
+          }
+        ]
+      });
+
+      const req = new Request('http://localhost/api/webhooks/instagram', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-hub-signature-256': signPayload(dmPayload, 'secret_key')
+        },
+        body: dmPayload
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.success).toBe(true);
+
+      // Verify that messages endpoint was called
+      const messageCall = fetchSpy.mock.calls.find(call => call[0].includes('/messages'));
+      expect(messageCall).toBeDefined();
+    });
   });
 });
