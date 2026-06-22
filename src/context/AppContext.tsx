@@ -1381,29 +1381,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (accessToken && igId && isSupabaseConfigured()) {
         try {
           const messageText = `${aut.action_config.message} ${aut.action_config.url}`.trim();
-          const response = await fetch(`https://graph.instagram.com/v20.0/${igId}/messages`, {
+          const response = await fetch('/api/instagram/send-dm', {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${accessToken}`
+              'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-              recipient: {
-                comment_id: comment.id
-              },
-              message: {
-                text: messageText
-              }
+              accountId: aut.instagram_account_id,
+              commentId: comment.id,
+              text: messageText,
+              accessToken,
+              igId
             })
           });
           const resData = await response.json();
           if (!response.ok || resData.error) {
-            console.error("Meta API private reply failed:", resData.error);
+            console.error("Meta API private reply proxy failed:", resData.error);
             sendSuccess = false;
-            sendErrorMsg = resData.error?.message || `HTTP ${response.status}: ${JSON.stringify(resData)}`;
+            sendErrorMsg = resData.error || `HTTP ${response.status}: ${JSON.stringify(resData)}`;
           }
         } catch (e: any) {
-          console.error("Failed to call Meta API for private reply:", e);
+          console.error("Failed to call Meta API proxy for private reply:", e);
           sendSuccess = false;
           sendErrorMsg = e.message || 'Network error';
         }
