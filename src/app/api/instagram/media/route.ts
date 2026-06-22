@@ -15,10 +15,10 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'accountId parameter is required' }, { status: 400 });
     }
 
-    // 1. Get access token from Supabase
+    // 1. Get access token and user ID from Supabase
     const { data: account, error: dbError } = await supabase
       .from('instagram_accounts')
-      .select('access_token, token_status')
+      .select('access_token, token_status, instagram_user_id')
       .eq('id', accountId)
       .single();
 
@@ -30,9 +30,9 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Access token is invalid or expired.' }, { status: 400 });
     }
 
-    // 2. Fetch media from Instagram Graph API
-    // fields: id, caption, media_type, media_url, permalink, thumbnail_url, timestamp
-    const mediaUrl = `https://graph.instagram.com/me/media?fields=id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,comments_count,like_count&limit=20&access_token=${account.access_token}`;
+    // 2. Fetch media from Instagram Graph API on graph.facebook.com
+    // fields: id, caption, media_type, media_product_type, media_url, permalink, thumbnail_url, timestamp, comments_count, like_count
+    const mediaUrl = `https://graph.facebook.com/v20.0/${account.instagram_user_id}/media?fields=id,caption,media_type,media_product_type,media_url,permalink,thumbnail_url,timestamp,comments_count,like_count&limit=20&access_token=${account.access_token}`;
     
     const mediaRes = await fetch(mediaUrl);
     const mediaData = await mediaRes.json();
@@ -48,7 +48,7 @@ export async function GET(req: Request) {
     const posts = (mediaData.data || []).map((item: any) => ({
       id: item.id,
       caption: item.caption || '',
-      type: item.media_type?.toLowerCase() === 'video' ? 'reel' : 'post',
+      type: (item.media_product_type?.toLowerCase() === 'reels' || item.media_type?.toLowerCase() === 'video') ? 'reel' : 'post',
       mediaUrl: item.media_url || '',
       permalink: item.permalink || '',
       thumbnailUrl: item.thumbnail_url || item.media_url || '',
