@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AutomationBuilder } from '@/components/AutomationBuilder';
 import { Automation, TriggerType, ActionType } from '@/lib/db';
 import { 
@@ -162,6 +162,8 @@ const TEMPLATES: TemplateItem[] = [
 
 export default function NewAutomationPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const postIdParam = searchParams ? searchParams.get('post_id') : null;
   const [activeCategory, setActiveCategory] = useState<'all' | 'featured' | 'engage' | 'sell' | 'leads'>('all');
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateItem | null>(null);
 
@@ -194,6 +196,7 @@ export default function NewAutomationPage() {
       name: selectedTemplate.name,
       trigger_type: selectedTemplate.triggerType,
       trigger_config: {
+        post_id: postIdParam || '',
         keywords: selectedTemplate.keywords ? selectedTemplate.keywords.split(',').map(k => k.trim()) : [],
       },
       action_type: selectedTemplate.actionType,

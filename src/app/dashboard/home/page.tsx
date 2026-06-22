@@ -35,7 +35,8 @@ export default function HomeDashboard() {
     automations, 
     events, 
     simulateInstagramInteraction,
-    toggleAutomationStatus
+    toggleAutomationStatus,
+    deleteAutomation
   } = useApp();
 
   // Simulator State
@@ -157,6 +158,15 @@ export default function HomeDashboard() {
       }
     }
     setIsRefreshing(false);
+  };
+
+  const handleRemoveAutomation = async (postId: string) => {
+    const aut = automations.find(a => a.instagram_account_id === activeAccountId && a.trigger_config?.post_id === postId);
+    if (aut) {
+      if (confirm('Are you sure you want to remove the automation for this post?')) {
+        await deleteAutomation(aut.id);
+      }
+    }
   };
 
   // Mock Instagram Posts (matches Tarzify screenshot style)
@@ -340,17 +350,17 @@ export default function HomeDashboard() {
                     </p>
                   </div>
 
-                  <div className="mt-4 pt-2.5 border-t border-zinc-100">
+                  <div className="mt-4 pt-2.5 border-t border-zinc-100 font-sans">
                     {post.isAutomated ? (
-                      <Link 
-                        href={`/dashboard/content`}
-                        className="w-full py-1.5 rounded-xl border border-zinc-200 hover:bg-zinc-50 transition text-center text-xs font-bold text-zinc-800 block shadow-inner"
+                      <button 
+                        onClick={() => handleRemoveAutomation(post.id)}
+                        className="w-full py-1.5 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 transition text-center text-xs font-bold text-red-700 block shadow-sm"
                       >
-                        View Automation
-                      </Link>
+                        Remove Automation
+                      </button>
                     ) : (
                       <Link 
-                        href={`/dashboard/automations/new?post_id=${post.id}`}
+                        href={`/dashboard/templates?post_id=${post.id}`}
                         className="w-full py-1.5 rounded-xl btn-gradient text-white text-center text-xs font-bold block shadow-sm"
                       >
                         Set up Automation

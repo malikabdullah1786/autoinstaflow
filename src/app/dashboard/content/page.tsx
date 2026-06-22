@@ -10,7 +10,7 @@ function ContentPageContent() {
   const searchParams = useSearchParams();
   const type = searchParams.get('type') || 'posts'; // 'posts' or 'stories'
 
-  const { activeAccountId, accounts, automations, events } = useApp();
+  const { activeAccountId, accounts, automations, events, deleteAutomation } = useApp();
   const activeAccount = accounts.find(a => a.id === activeAccountId);
 
   const [realPosts, setRealPosts] = useState<any[]>([]);
@@ -70,6 +70,15 @@ function ContentPageContent() {
     
     fetchMedia();
   }, [activeAccountId, automations]);
+
+  const handleRemoveAutomation = async (postId: string) => {
+    const aut = automations.find(a => a.instagram_account_id === activeAccountId && a.trigger_config?.post_id === postId);
+    if (aut) {
+      if (confirm('Are you sure you want to remove the automation for this post?')) {
+        await deleteAutomation(aut.id);
+      }
+    }
+  };
 
   if (!activeAccountId || !activeAccount) {
     return (
@@ -270,15 +279,15 @@ function ContentPageContent() {
                     <td className="p-4 font-bold text-zinc-800">{ctr}</td>
                     <td className="p-4 pr-5 text-right">
                       {item.isAutomated ? (
-                        <Link
-                          href="/dashboard/automations"
-                          className="inline-flex items-center gap-1 bg-white hover:bg-zinc-50 border border-zinc-200 text-[10px] font-bold text-zinc-700 px-3 py-1.5 rounded-xl shadow-inner transition"
+                        <button
+                          onClick={() => handleRemoveAutomation(item.id)}
+                          className="inline-flex items-center gap-1 bg-red-50 hover:bg-red-100 border border-red-200 text-[10px] font-bold text-red-700 px-3 py-1.5 rounded-xl shadow-sm transition"
                         >
-                          View Automation
-                        </Link>
+                          Remove Automation
+                        </button>
                       ) : (
                         <Link
-                          href={`/dashboard/automations/new?post_id=${item.id}`}
+                          href={`/dashboard/templates?post_id=${item.id}`}
                           className="inline-flex items-center gap-1 btn-gradient text-[10px] font-bold text-white px-3 py-1.5 rounded-xl shadow-sm transition"
                         >
                           Set up Automation

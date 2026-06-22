@@ -75,6 +75,16 @@ export const AutomationBuilder: React.FC<AutomationBuilderProps> = ({ initialDat
     }
   }, [activeAccountPosts]);
 
+  // Adjust trigger type to match the post type of pre-selected post (if any)
+  useEffect(() => {
+    if (initialData?.trigger_config?.post_id) {
+      const matched = activeAccountPosts.find(p => p.id === initialData.trigger_config.post_id);
+      if (matched) {
+        setTriggerType(matched.type === 'story' ? 'story_reply' : 'comment');
+      }
+    }
+  }, [initialData, activeAccountPosts]);
+
   const activeAccount = accounts.find(a => a.id === activeAccountId);
 
   const handleSave = async (e: React.FormEvent) => {
