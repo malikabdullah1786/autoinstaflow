@@ -493,5 +493,186 @@ describe('Instagram Webhook Handler', () => {
       const data = await res.json();
       expect(data.success).toBe(true);
     });
+
+    it('should handle follow gate comment webhook and send follow prompt when user is not following', async () => {
+      const mockAccount = { id: 'acc_123', workspace_id: 'ws_123', instagram_user_id: '123456789', access_token: 'tok_123' };
+      const mockFollowAutomation = {
+        id: 'aut_follow_123',
+        workspace_id: 'ws_123',
+        instagram_account_id: 'acc_123',
+        name: 'Follow Gate Magnet',
+        status: 'live',
+        trigger_type: 'comment',
+        action_type: 'follow_gate',
+        action_config: { message: 'Thanks! Here is your download:', url: 'https://example.com/freebie.pdf' },
+        dm_sent_count: 0
+      };
+      const mockWorkspace = { id: 'ws_123', dm_quota_monthly: 500, dm_sent_current_period: 0, dm_addon_credits: 0 };
+
+      vi.spyOn(mockSupabase, 'from').mockImplementation((table) => {
+        const mockQB = {
+          select: vi.fn().mockImplementation(() => mockQB),
+          eq: vi.fn().mockImplementation(() => mockQB),
+          gt: vi.fn().mockImplementation(() => mockQB),
+          limit: vi.fn().mockImplementation(() => mockQB),
+          single: vi.fn().mockImplementation(() => {
+            if (table === 'instagram_accounts') return Promise.resolve({ data: mockAccount, error: null });
+            if (table === 'workspaces') return Promise.resolve({ data: mockWorkspace, error: null });
+            return Promise.resolve({ data: null, error: 'Not found' });
+          }),
+          maybeSingle: vi.fn().mockImplementation(() => {
+            return Promise.resolve({ data: null, error: null });
+          }),
+          insert: vi.fn().mockImplementation(() => mockQB),
+          update: vi.fn().mockImplementation(() => mockQB),
+          then: vi.fn().mockImplementation((onfulfilled) => {
+            return Promise.resolve({ data: [mockFollowAutomation], error: null }).then(onfulfilled);
+          })
+        };
+        return mockQB as any;
+      });
+
+      global.fetch = vi.fn().mockImplementation(() => {
+        return Promise.resolve({
+          status: 200,
+          ok: true,
+          json: () => Promise.resolve({ is_user_follow_business: false }) // not following
+        } as Response);
+      });
+
+      const payload = JSON.stringify({
+        object: 'instagram',
+        entry: [
+          {
+            id: '123456789',
+            time: 1600000000,
+            changes: [
+              {
+                field: 'comments',
+                value: {
+                  id: 'comment_333',
+                  text: 'want it!',
+                  from: { id: 'sender_not_following', username: 'john_doe' },
+                  media: { id: 'media_999' }
+                }
+              }
+            ]
+          }
+        ]
+      });
+
+      const req = new Request('http://localhost/api/webhooks/instagram', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-hub-signature-256': signPayload(payload, 'secret_key')
+        },
+        body: payload
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.success).toBe(true);
+    });
+
+    it('should release gated link when user clicks Following and follow is verified', async () => {
+      const mockAccount = { id: 'acc_123', workspace_id: 'ws_123', instagram_user_id: '123456789', access_token: 'tok_123' };
+      const mockContact = { id: 'con_123', workspace_id: 'ws_123', instagram_user_id: 'ig_user_john_doe', email: null, interaction_count: 1 };
+      const mockFollowAutomation = {
+        id: 'aut_follow_123',
+        workspace_id: 'ws_123',
+        instagram_account_id: 'acc_123',
+        name: 'Follow Gate Magnet',
+        status: 'live',
+        trigger_type: 'comment',
+        action_type: 'follow_gate',
+        action_config: { message: 'Thanks! Here is your download:', url: 'https://example.com/freebie.pdf' },
+        dm_sent_count: 1
+      };
+      const mockWorkspace = { id: 'ws_123', dm_quota_monthly: 500, dm_sent_current_period: 1, dm_addon_credits: 0 };
+
+      vi.spyOn(mockSupabase, 'from').mockImplementation((table) => {
+        const mockQB = {
+          select: vi.fn().mockImplementation(() => mockQB),
+          eq: vi.fn().mockImplementation(() => mockQB),
+          gt: vi.fn().mockImplementation(() => mockQB),
+          limit: vi.fn().mockImplementation(() => mockQB),
+          order: vi.fn().mockImplementation(() => mockQB),
+          single: vi.fn().mockImplementation(() => {
+            if (table === 'instagram_accounts') return Promise.resolve({ data: mockAccount, error: null });
+            if (table === 'workspaces') return Promise.resolve({ data: mockWorkspace, error: null });
+            return Promise.resolve({ data: null, error: 'Not found' });
+          }),
+          maybeSingle: vi.fn().mockImplementation(() => {
+            if (table === 'contacts') return Promise.resolve({ data: mockContact, error: null });
+            if (table === 'automation_events') return Promise.resolve({ data: { automation_id: 'aut_follow_123' }, error: null });
+            if (table === 'automations') return Promise.resolve({ data: mockFollowAutomation, error: null });
+            return Promise.resolve({ data: null, error: null });
+          }),
+          insert: vi.fn().mockImplementation(() => mockQB),
+          update: vi.fn().mockImplementation(() => mockQB),
+          then: vi.fn().mockImplementation((onfulfilled) => {
+            if (table === 'automations') return Promise.resolve({ data: [mockFollowAutomation], error: null }).then(onfulfilled);
+            return Promise.resolve({ data: [], error: null }).then(onfulfilled);
+          })
+        };
+        return mockQB as any;
+      });
+
+      global.fetch = vi.fn().mockImplementation((url) => {
+        if (url.includes('sender_following')) {
+          // Mock profile fetch which returns username AND following check
+          return Promise.resolve({
+            status: 200,
+            ok: true,
+            json: () => Promise.resolve({ username: 'john_doe', is_user_follow_business: true })
+          } as Response);
+        }
+        return Promise.resolve({
+          status: 200,
+          ok: true,
+          json: () => Promise.resolve({ success: true })
+        } as Response);
+      });
+
+      const dmPayload = JSON.stringify({
+        object: 'instagram',
+        entry: [
+          {
+            id: '123456789',
+            time: 1600000000,
+            messaging: [
+              {
+                sender: { id: 'sender_following' },
+                recipient: { id: '123456789' },
+                timestamp: 1600000000,
+                message: {
+                  mid: 'mid_dm_222',
+                  text: 'Following',
+                  quick_reply: {
+                    payload: 'check_follow_aut_follow_123'
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      });
+
+      const req = new Request('http://localhost/api/webhooks/instagram', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-hub-signature-256': signPayload(dmPayload, 'secret_key')
+        },
+        body: dmPayload
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.success).toBe(true);
+    });
   });
 });
