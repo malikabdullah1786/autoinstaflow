@@ -39,7 +39,7 @@ function ContentLinks({ pathname }: { pathname: string }) {
         href="/dashboard/content"
         className={`flex items-center gap-2 py-1.5 px-3 rounded-lg text-xs font-semibold transition ${
           pathname === '/dashboard/content' && (!typeParam || typeParam !== 'stories')
-            ? 'bg-zinc-100 border border-zinc-950 text-zinc-950 font-bold'
+            ? 'bg-purple-50 border border-purple-250 text-purple-700 font-bold'
             : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'
         }`}
       >
@@ -49,7 +49,7 @@ function ContentLinks({ pathname }: { pathname: string }) {
         href="/dashboard/content?type=stories"
         className={`flex items-center gap-2 py-1.5 px-3 rounded-lg text-xs font-semibold transition ${
           pathname === '/dashboard/content' && typeParam === 'stories'
-            ? 'bg-zinc-100 border border-zinc-950 text-zinc-950 font-bold'
+            ? 'bg-purple-50 border border-purple-250 text-purple-700 font-bold'
             : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'
         }`}
       >
@@ -209,7 +209,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     setActiveAccountId(acc.id);
                     setDropdownOpen(false);
                   }}
-                  className={`w-full text-left px-2 py-2 rounded-md text-xs transition flex items-center gap-2 ${acc.id === activeAccountId ? 'bg-zinc-950 text-white font-bold' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                  className={`w-full text-left px-2 py-2 rounded-md text-xs transition flex items-center gap-2 ${acc.id === activeAccountId ? 'bg-purple-600 text-white font-bold' : 'text-zinc-600 hover:bg-zinc-50'}`}
                 >
                   {acc.profile_picture_url ? (
                     <img src={acc.profile_picture_url} alt={acc.username} className="w-5 h-5 rounded-full object-cover border border-zinc-200 shrink-0" />
@@ -219,7 +219,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <div className="flex flex-col gap-0 overflow-hidden">
                     <span className="truncate">@{acc.username}</span>
                     {acc.followers_count != null && (
-                      <span className={`text-[8px] font-semibold ${acc.id === activeAccountId ? 'text-zinc-300' : 'text-zinc-400'}`}>
+                      <span className={`text-[8px] font-semibold ${acc.id === activeAccountId ? 'text-purple-200' : 'text-zinc-400'}`}>
                         {acc.followers_count.toLocaleString()} followers
                       </span>
                     )}
@@ -261,7 +261,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             href="/dashboard/home"
             className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition ${
               pathname === '/dashboard/home'
-                ? 'bg-zinc-100 border border-zinc-950 text-zinc-950 font-bold'
+                ? 'bg-purple-50 border border-purple-250 text-purple-700 font-bold'
                 : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'
             }`}
           >
@@ -274,7 +274,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             href="/dashboard/automations"
             className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition ${
               pathname.startsWith('/dashboard/automations')
-                ? 'bg-zinc-100 border border-zinc-950 text-zinc-950 font-bold'
+                ? 'bg-purple-50 border border-purple-250 text-purple-700 font-bold'
                 : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'
             }`}
           >
@@ -287,7 +287,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             href="/dashboard/templates"
             className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition ${
               pathname === '/dashboard/templates'
-                ? 'bg-zinc-100 border border-zinc-950 text-zinc-950 font-bold'
+                ? 'bg-purple-50 border border-purple-250 text-purple-700 font-bold'
                 : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'
             }`}
           >
@@ -321,7 +321,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             href="/dashboard/contacts"
             className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition ${
               pathname === '/dashboard/contacts'
-                ? 'bg-zinc-100 border border-zinc-950 text-zinc-950 font-bold'
+                ? 'bg-purple-50 border border-purple-250 text-purple-700 font-bold'
                 : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'
             }`}
           >
@@ -334,7 +334,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             href="/dashboard/rewind"
             className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition ${
               pathname === '/dashboard/rewind'
-                ? 'bg-zinc-100 border border-zinc-950 text-zinc-950 font-bold'
+                ? 'bg-purple-50 border border-purple-250 text-purple-700 font-bold'
                 : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'
             }`}
           >
@@ -360,7 +360,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   href="/dashboard/analytics"
                   className={`flex items-center gap-2 py-1.5 px-3 rounded-lg text-xs font-semibold transition ${
                     pathname === '/dashboard/analytics'
-                      ? 'bg-zinc-100 border border-zinc-950 text-zinc-950 font-bold'
+                      ? 'bg-purple-50 border border-purple-250 text-purple-700 font-bold'
                       : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'
                   }`}
                 >
@@ -375,7 +375,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             href="/dashboard/support"
             className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition ${
               pathname === '/dashboard/support'
-                ? 'bg-zinc-100 border border-zinc-950 text-zinc-950 font-bold'
+                ? 'bg-purple-50 border border-purple-250 text-purple-700 font-bold'
                 : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'
             }`}
           >
@@ -388,7 +388,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             href="/dashboard/billing"
             className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition ${
               pathname === '/dashboard/billing'
-                ? 'bg-zinc-100 border border-zinc-950 text-zinc-950 font-bold'
+                ? 'bg-purple-50 border border-purple-250 text-purple-700 font-bold'
                 : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'
             }`}
           >
@@ -401,7 +401,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             href="/dashboard/simulator"
             className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition ${
               pathname === '/dashboard/simulator'
-                ? 'bg-zinc-100 border border-zinc-950 text-zinc-950 font-bold'
+                ? 'bg-purple-50 border border-purple-250 text-purple-700 font-bold'
                 : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'
             }`}
           >

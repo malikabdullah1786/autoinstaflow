@@ -383,7 +383,7 @@ export default function HomeDashboard() {
                 const trigger = document.querySelector('[onClick*="setShowLinkModal"]');
                 if (trigger) (trigger as HTMLElement).click();
               }}
-              className="px-5 py-2.5 bg-zinc-950 text-white rounded-xl text-xs font-bold hover:bg-zinc-900 transition shadow-md"
+              className="px-5 py-2.5 btn-gradient text-white rounded-xl text-xs font-bold hover:opacity-95 transition shadow-md"
             >
               Connect Account
             </button>
@@ -449,7 +449,7 @@ export default function HomeDashboard() {
                   <span className="text-xs font-bold text-zinc-800">No Automations Yet</span>
                   <span className="text-xs text-zinc-450">Create your first automated response for comments or story tags.</span>
                 </div>
-                <Link href="/dashboard/automations/new" className="px-4 py-2 bg-zinc-950 text-white rounded-xl text-xs font-bold hover:bg-zinc-900 transition">
+                <Link href="/dashboard/automations/new" className="px-4 py-2 btn-gradient text-white rounded-xl text-xs font-bold hover:opacity-95 transition">
                   Create First Automation
                 </Link>
               </div>
@@ -576,6 +576,17 @@ export default function HomeDashboard() {
               Since you are in a sandbox simulation, mock an Instagram action to test your live automations instantly.
             </p>
 
+            {activeAccount && (
+              <div className="flex items-center gap-1.5 mb-4 p-2 bg-purple-50 border border-purple-100 rounded-xl text-[11px] font-bold text-purple-700 w-max shadow-sm">
+                {activeAccount.profile_picture_url ? (
+                  <img src={activeAccount.profile_picture_url} alt="Profile" className="w-4 h-4 rounded-full object-cover shrink-0" />
+                ) : (
+                  <div className="w-4 h-4 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 shrink-0" />
+                )}
+                <span>Active Account: @{activeAccount.username}</span>
+              </div>
+            )}
+
             {!activeAccount ? (
               <div className="p-4 rounded-xl bg-zinc-50 border border-zinc-200 text-center text-xs text-zinc-500 font-medium">
                 Connect an account first to unlock testing.
@@ -673,7 +684,7 @@ export default function HomeDashboard() {
 
                 <button 
                   type="submit" 
-                  className="w-full py-2.5 rounded-xl bg-zinc-950 hover:bg-zinc-900 font-bold transition text-xs text-white shadow-md"
+                  className="w-full py-2.5 rounded-xl btn-gradient hover:opacity-95 font-bold transition text-xs text-white shadow-md"
                 >
                   Fire Simulated Hook
                 </button>
