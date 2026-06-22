@@ -97,6 +97,10 @@ export default function ConnectPage() {
           const linkRes = await linkRealInstagramAccount({
             instagramUserId: data.instagramUserId,
             username: data.username,
+            fullName: data.fullName,
+            profilePicUrl: data.profilePic,
+            followersCount: data.followersCount,
+            mediaCount: data.mediaCount,
             accessToken: data.accessToken,
             tokenExpiresAt: data.tokenExpiresAt
           });

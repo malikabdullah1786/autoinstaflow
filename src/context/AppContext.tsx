@@ -466,6 +466,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const linkRealInstagramAccount = async (accountData: {
     instagramUserId: string;
     username: string;
+    fullName?: string;
+    profilePicUrl?: string | null;
+    followersCount?: number;
+    mediaCount?: number;
     accessToken: string;
     tokenExpiresAt: string;
   }) => {
@@ -492,6 +496,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             workspace_id: workspace.id,
             instagram_user_id: accountData.instagramUserId,
             username: cleanUsername,
+            full_name: accountData.fullName || existingAcc.full_name || null,
+            profile_picture_url: accountData.profilePicUrl || existingAcc.profile_picture_url || null,
+            followers_count: accountData.followersCount ?? existingAcc.followers_count ?? null,
+            media_count: accountData.mediaCount ?? existingAcc.media_count ?? null,
             access_token: accountData.accessToken,
             token_expires_at: accountData.tokenExpiresAt,
             token_status: 'active',
@@ -503,6 +511,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             workspace_id: workspace.id,
             instagram_user_id: accountData.instagramUserId,
             username: cleanUsername,
+            full_name: accountData.fullName || null,
+            profile_picture_url: accountData.profilePicUrl || null,
+            followers_count: accountData.followersCount ?? null,
+            media_count: accountData.mediaCount ?? null,
             access_token: accountData.accessToken,
             token_expires_at: accountData.tokenExpiresAt,
             token_status: 'active',

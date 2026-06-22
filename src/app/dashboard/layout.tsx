@@ -151,11 +151,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white border border-zinc-200 text-sm font-medium hover:bg-zinc-50 transition text-zinc-800 shadow-sm"
           >
             <div className="flex items-center gap-2 overflow-hidden">
-              <svg className="w-4 h-4 text-pink-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-                <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-                <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
-              </svg>
+              {activeAccount?.profile_picture_url ? (
+                <img
+                  src={activeAccount.profile_picture_url}
+                  alt={activeAccount.username}
+                  className="w-5 h-5 rounded-full object-cover border border-zinc-200 shrink-0"
+                />
+              ) : (
+                <svg className="w-4 h-4 text-pink-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+                  <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+                  <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+                </svg>
+              )}
               <span className="truncate">
                 {activeAccount ? `@${activeAccount.username}` : 'No Connected Account'}
               </span>
@@ -179,11 +187,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     setActiveAccountId(acc.id);
                     setDropdownOpen(false);
                   }}
-                  className={`w-full text-left px-2 py-1.5 rounded-md text-xs transition flex items-center justify-between ${acc.id === activeAccountId ? 'bg-purple-600 text-white font-bold' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                  className={`w-full text-left px-2 py-2 rounded-md text-xs transition flex items-center gap-2 ${acc.id === activeAccountId ? 'bg-purple-600 text-white font-bold' : 'text-zinc-600 hover:bg-zinc-50'}`}
                 >
-                  <span>@{acc.username}</span>
+                  {acc.profile_picture_url ? (
+                    <img src={acc.profile_picture_url} alt={acc.username} className="w-6 h-6 rounded-full object-cover border border-zinc-200 shrink-0" />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 shrink-0" />
+                  )}
+                  <div className="flex flex-col gap-0 overflow-hidden">
+                    <span className="truncate">@{acc.username}</span>
+                    {acc.followers_count != null && (
+                      <span className={`text-[9px] font-semibold ${acc.id === activeAccountId ? 'text-purple-200' : 'text-zinc-400'}`}>
+                        {acc.followers_count.toLocaleString()} followers
+                      </span>
+                    )}
+                  </div>
                   {acc.token_status !== 'active' && (
-                    <span className="bg-red-100 text-red-600 px-1 py-0.5 rounded text-[9px] font-bold">Fix Token</span>
+                    <span className="ml-auto bg-red-100 text-red-600 px-1 py-0.5 rounded text-[9px] font-bold shrink-0">Fix Token</span>
                   )}
                 </button>
               ))}

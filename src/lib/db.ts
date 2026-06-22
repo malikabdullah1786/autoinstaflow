@@ -31,6 +31,10 @@ export interface InstagramAccount {
   workspace_id: string;
   instagram_user_id: string;
   username: string;
+  full_name?: string;
+  profile_picture_url?: string;
+  followers_count?: number;
+  media_count?: number;
   access_token: string;
   token_expires_at?: string;
   token_status: 'active' | 'token_invalid' | 'revoked';

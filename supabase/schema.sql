@@ -34,6 +34,10 @@ CREATE TABLE IF NOT EXISTS instagram_accounts (
     workspace_id      UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
     instagram_user_id TEXT NOT NULL,
     username          TEXT NOT NULL,
+    full_name         TEXT,
+    profile_picture_url TEXT,
+    followers_count   INT,
+    media_count       INT,
     access_token      TEXT NOT NULL,
     token_expires_at  TIMESTAMPTZ,
     token_status      TEXT NOT NULL DEFAULT 'active' CHECK (token_status IN ('active', 'token_invalid', 'revoked')),
@@ -42,6 +46,13 @@ CREATE TABLE IF NOT EXISTS instagram_accounts (
     updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(workspace_id, instagram_user_id)
 );
+
+-- Migration: add profile columns if they don't exist (run this on existing databases)
+ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS full_name TEXT;
+ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS profile_picture_url TEXT;
+ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS followers_count INT;
+ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS media_count INT;
+
 
 -- Templates table (populated by system)
 CREATE TABLE IF NOT EXISTS templates (

@@ -80,7 +80,8 @@ export async function POST(req: Request) {
     const tokenExpiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
 
     // 3. Fetch Instagram profile info using the long-lived token
-    const profileUrl = `https://graph.instagram.com/me?fields=id,username,name,profile_picture_url&access_token=${longLivedToken}`;
+    // fields: id, username, name, profile_picture_url, followers_count, media_count
+    const profileUrl = `https://graph.instagram.com/me?fields=id,username,name,profile_picture_url,followers_count,media_count&access_token=${longLivedToken}`;
     console.log(">>> [Instagram OAuth Callback] Fetching profile info from:", profileUrl.split('&access_token=')[0] + '&access_token=...');
     
     const profileRes = await fetch(profileUrl);
@@ -99,7 +100,9 @@ export async function POST(req: Request) {
       instagramUserId: profileData.id,
       username: profileData.username,
       fullName: profileData.name || profileData.username,
-      profilePic: profileData.profile_picture_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+      profilePic: profileData.profile_picture_url || null,
+      followersCount: profileData.followers_count || 0,
+      mediaCount: profileData.media_count || 0,
       accessToken: longLivedToken,
       tokenExpiresAt
     });
