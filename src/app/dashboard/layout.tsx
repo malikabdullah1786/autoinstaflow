@@ -59,22 +59,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [user, workspace, loading, router]);
 
-  // Redirect users who have no connected accounts to /dashboard/connect, unless on billing or simulator
-  useEffect(() => {
-    if (loading) return;
-    if (user && workspace) {
-      if (accounts.length === 0) {
-        const allowedPaths = ['/dashboard/connect', '/dashboard/billing', '/dashboard/simulator'];
-        if (!allowedPaths.includes(pathname)) {
-          router.push('/dashboard/connect');
-        }
-      } else {
-        if (pathname === '/dashboard/connect') {
-          router.push('/dashboard/home');
-        }
-      }
-    }
-  }, [user, workspace, accounts.length, pathname, loading, router]);
+  // Redirect users who have no connected accounts to /dashboard/connect, unless on billing or simulator (Temporarily disabled to allow viewing layout/other pages)
+  // useEffect(() => {
+  //   if (loading) return;
+  //   if (user && workspace) {
+  //     if (accounts.length === 0) {
+  //       const allowedPaths = ['/dashboard/connect', '/dashboard/billing', '/dashboard/simulator'];
+  //       if (!allowedPaths.includes(pathname)) {
+  //         router.push('/dashboard/connect');
+  //       }
+  //     } else {
+  //       if (pathname === '/dashboard/connect') {
+  //         router.push('/dashboard/home');
+  //       }
+  //     }
+  //   }
+  // }, [user, workspace, accounts.length, pathname, loading, router]);
 
   if (loading) {
     return (
