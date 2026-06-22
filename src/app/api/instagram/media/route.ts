@@ -30,9 +30,9 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Access token is invalid or expired.' }, { status: 400 });
     }
 
-    // 2. Fetch media from Instagram Graph API on graph.facebook.com
+    // 2. Fetch media from Instagram Graph API on graph.instagram.com
     // fields: id, caption, media_type, media_product_type, media_url, permalink, thumbnail_url, timestamp, comments_count, like_count
-    const mediaUrl = `https://graph.facebook.com/v20.0/${account.instagram_user_id}/media?fields=id,caption,media_type,media_product_type,media_url,permalink,thumbnail_url,timestamp,comments_count,like_count&limit=20&access_token=${account.access_token}`;
+    const mediaUrl = `https://graph.instagram.com/me/media?fields=id,caption,media_type,media_product_type,media_url,permalink,thumbnail_url,timestamp,comments_count,like_count&limit=20&access_token=${account.access_token}`;
     
     const mediaRes = await fetch(mediaUrl);
     const mediaData = await mediaRes.json();
