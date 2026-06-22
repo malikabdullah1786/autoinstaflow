@@ -70,8 +70,8 @@ export default function BillingPage() {
     {
       id: 'pro',
       name: 'Pro Plan',
-      priceMonthly: 15,
-      priceYearly: 12,
+      priceMonthly: 8,
+      priceYearly: 6,
       quota: 5000,
       accounts: 2,
       features: [
@@ -89,8 +89,8 @@ export default function BillingPage() {
     {
       id: 'growth',
       name: 'Growth Plan',
-      priceMonthly: 30,
-      priceYearly: 24,
+      priceMonthly: 15,
+      priceYearly: 12,
       quota: 10000,
       accounts: 5,
       features: [
@@ -163,7 +163,7 @@ export default function BillingPage() {
               onClick={() => setBillingCycle('yearly')}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold transition flex items-center gap-1 ${billingCycle === 'yearly' ? 'bg-purple-600 text-white shadow' : 'text-zinc-500 hover:text-zinc-800'}`}
             >
-              Yearly billing <span className="bg-pink-50 border border-pink-200 text-pink-700 px-1.5 py-0.5 rounded text-[8px] font-bold">Save 20%</span>
+              Yearly billing <span className="bg-pink-50 border border-pink-200 text-pink-700 px-1.5 py-0.5 rounded text-[8px] font-bold">Save up to 25%</span>
             </button>
           </div>
         </div>
