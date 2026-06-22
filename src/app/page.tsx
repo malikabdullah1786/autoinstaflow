@@ -1,13 +1,29 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
 import { Sparkles, MessageSquare, ShieldCheck, Mail, Zap, Check, ArrowRight } from 'lucide-react';
 
 export default function LandingPage() {
   const { user } = useApp();
+  const router = useRouter();
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
+
+  // Detect Instagram OAuth redirect: ?code= lands here because redirect_uri is the root URL.
+  // Forward immediately to /dashboard/connect so the callback handler can process the code.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const error = params.get('error');
+    if (code) {
+      router.replace(`/dashboard/connect?code=${encodeURIComponent(code)}`);
+    } else if (error) {
+      router.replace(`/dashboard/connect?error=${encodeURIComponent(error)}`);
+    }
+  }, [router]);
 
   return (
     <div className="min-h-screen flex flex-col justify-between bg-zinc-50/30 font-sans text-zinc-800">

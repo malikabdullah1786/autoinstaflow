@@ -17,6 +17,7 @@ export default function ConnectPage() {
     workspace, 
     accounts, 
     linkRealInstagramAccount,
+    addInstagramAccount,
     signOut 
   } = useApp();
 
@@ -67,7 +68,10 @@ export default function ConnectPage() {
       const exchangeCode = async () => {
         try {
           setOauthStatus(prev => ({ ...prev, step: 'Exchanging authorization code with Meta servers...' }));
-          const redirectUri = process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI || (window.location.origin + '/dashboard/connect');
+          // IMPORTANT: redirectUri must EXACTLY match what was used when initiating the OAuth flow.
+          // Our authorize URL uses the root domain (e.g. https://autoinstaflow-pied.vercel.app/)
+          // so we derive that here — NOT /dashboard/connect.
+          const redirectUri = process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI || window.location.origin + '/';
           
           const res = await fetch('/api/auth/instagram/callback', {
             method: 'POST',
