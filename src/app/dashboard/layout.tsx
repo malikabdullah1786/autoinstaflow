@@ -248,9 +248,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* New Automation Button */}
         <Link 
           href="/dashboard/automations/new"
-          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-[#d2ff00] hover:bg-[#c1f000] text-zinc-950 font-extrabold text-xs shadow-sm transition border border-zinc-950/15"
+          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 btn-gradient text-white text-xs font-bold shadow-sm"
         >
-          <Plus className="w-3.5 h-3.5 text-zinc-950 stroke-[3.5]" />
+          <Plus className="w-3.5 h-3.5 text-white stroke-[3.5]" />
           New Automation
         </Link>
 
@@ -420,7 +420,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <span className="font-bold text-zinc-850">{totalUsed}/{totalLimit}</span>
           </div>
           <div className="w-full h-1 bg-zinc-100 rounded-full overflow-hidden border border-zinc-200">
-            <div className="h-full bg-[#d2ff00] rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+            <div className="h-full bg-purple-600 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
           </div>
         </div>
 
@@ -431,7 +431,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <span className="font-bold text-zinc-850">{accounts.length}/{accountLimit}</span>
           </div>
           <div className="w-full h-1 bg-zinc-100 rounded-full overflow-hidden border border-zinc-200">
-            <div className="h-full bg-[#d2ff00] rounded-full transition-all duration-500" style={{ width: `${(accounts.length / accountLimit) * 100}%` }} />
+            <div className="h-full bg-purple-600 rounded-full transition-all duration-500" style={{ width: `${(accounts.length / accountLimit) * 100}%` }} />
           </div>
         </div>
 
@@ -529,7 +529,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="bg-[#0b0c10] text-white px-6 py-2 flex items-center justify-between text-[11px] relative z-30 font-medium">
             <div className="flex items-center gap-2 pr-4">
               <span>Upgrade to unlock every feature and accelerate your growth.</span>
-              <Link href="/dashboard/billing" className="bg-[#d2ff00] text-zinc-950 px-2.5 py-0.5 rounded-full font-extrabold text-[10px] hover:bg-[#c1f000] transition">
+              <Link href="/dashboard/billing" className="bg-purple-600 text-white px-2.5 py-0.5 rounded-full font-extrabold text-[10px] hover:bg-purple-700 transition">
                 Try 14 Days For Free
               </Link>
               <Link href="/dashboard/billing" className="text-white hover:text-zinc-300 underline font-bold ml-2">
@@ -542,7 +542,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         )}
 
-        <main className="flex-1 p-4 sm:p-8 overflow-y-auto max-w-6xl w-full mx-auto">
+        <main className="flex-1 p-4 sm:p-8 overflow-y-auto w-full">
           {children}
         </main>
       </div>

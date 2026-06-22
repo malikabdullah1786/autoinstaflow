@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/context/AppContext';
@@ -71,9 +71,92 @@ export default function HomeDashboard() {
     setSimOutcome(res);
   };
 
-  const handleRefresh = () => {
+  const [realPosts, setRealPosts] = useState<any[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(false);
+
+  useEffect(() => {
+    if (!activeAccountId) {
+      setRealPosts([]);
+      return;
+    }
+    
+    async function fetchMedia() {
+      setLoadingPosts(true);
+      try {
+        const res = await fetch(`/api/instagram/media?accountId=${activeAccountId}`);
+        const data = await res.json();
+        if (data.success && data.posts) {
+          const mapped = data.posts.map((item: any) => {
+            const hasAutomation = automations.some(aut => 
+              aut.instagram_account_id === activeAccountId &&
+              (
+                aut.trigger_post_id === item.id || 
+                (aut.trigger_type === 'comment' && aut.trigger_post_id === 'all_posts')
+              )
+            );
+            return {
+              id: item.id,
+              caption: item.caption,
+              likes: item.likeCount || 0,
+              comments: item.commentsCount || 0,
+              isAutomated: hasAutomation,
+              mediaUrl: item.mediaUrl,
+              permalink: item.permalink,
+              thumbnailUrl: item.thumbnailUrl || item.thumbnail,
+              bgGradient: item.type === 'story' ? 'from-amber-400 via-pink-500 to-purple-650' : 'from-pink-500 via-red-500 to-yellow-500',
+              type: item.type
+            };
+          });
+          setRealPosts(mapped);
+        } else {
+          setRealPosts([]);
+        }
+      } catch (err) {
+        console.error("Failed to fetch real media:", err);
+        setRealPosts([]);
+      } finally {
+        setLoadingPosts(false);
+      }
+    }
+    
+    fetchMedia();
+  }, [activeAccountId, automations]);
+
+  const handleRefresh = async () => {
     setIsRefreshing(true);
-    setTimeout(() => setIsRefreshing(false), 800);
+    if (activeAccountId) {
+      try {
+        const res = await fetch(`/api/instagram/media?accountId=${activeAccountId}`);
+        const data = await res.json();
+        if (data.success && data.posts) {
+          const mapped = data.posts.map((item: any) => {
+            const hasAutomation = automations.some(aut => 
+              aut.instagram_account_id === activeAccountId &&
+              (
+                aut.trigger_post_id === item.id || 
+                (aut.trigger_type === 'comment' && aut.trigger_post_id === 'all_posts')
+              )
+            );
+            return {
+              id: item.id,
+              caption: item.caption,
+              likes: item.likeCount || 0,
+              comments: item.commentsCount || 0,
+              isAutomated: hasAutomation,
+              mediaUrl: item.mediaUrl,
+              permalink: item.permalink,
+              thumbnailUrl: item.thumbnailUrl || item.thumbnail,
+              bgGradient: item.type === 'story' ? 'from-amber-400 via-pink-500 to-purple-650' : 'from-pink-500 via-red-500 to-yellow-500',
+              type: item.type
+            };
+          });
+          setRealPosts(mapped);
+        }
+      } catch (err) {
+        console.error("Failed to refresh real media:", err);
+      }
+    }
+    setIsRefreshing(false);
   };
 
   // Mock Instagram Posts (matches Tarzify screenshot style)
@@ -184,7 +267,7 @@ export default function HomeDashboard() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-extrabold text-zinc-900">Today's actions</span>
-                <span className="text-xs text-zinc-450">• {mockPosts.filter(p => !p.isAutomated).length} recent posts don't have an automation yet.</span>
+                <span className="text-xs text-zinc-450">• {displayedPosts.filter(p => !p.isAutomated).length} recent posts don't have an automation yet.</span>
               </div>
               <div className="flex items-center gap-3">
                 <button 
@@ -202,27 +285,56 @@ export default function HomeDashboard() {
 
             {/* Horizontal Grid of Post Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {mockPosts.map(post => (
+              {displayedPosts.slice(0, 4).map(post => (
                 <div key={post.id} className="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm flex flex-col justify-between p-3.5 group">
                   <div className="flex flex-col gap-3">
                     {/* Visual post thumbnail placeholder */}
-                    <div className={`aspect-square w-full rounded-xl bg-gradient-to-tr ${post.bgGradient} flex flex-col justify-between p-2.5 text-white relative shadow-inner overflow-hidden`}>
-                      <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition-all duration-300" />
-                      <div className="z-10 ml-auto bg-black/40 backdrop-blur-md px-1.5 py-0.5 rounded text-[9px] font-bold">
-                        POST
+                    {post.mediaUrl ? (
+                      <div className="aspect-square w-full rounded-xl relative shadow-inner overflow-hidden border border-zinc-200">
+                        <img 
+                          src={post.mediaUrl} 
+                          alt="Instagram media" 
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                          onError={(e) => {
+                            // Fallback to gradient if image fails to load
+                            e.currentTarget.style.display = 'none';
+                            const fallback = e.currentTarget.parentElement?.querySelector('.fallback-gradient');
+                            if (fallback) fallback.classList.remove('hidden');
+                          }}
+                        />
+                        <div className="fallback-gradient hidden absolute inset-0 bg-gradient-to-tr from-pink-500 via-red-500 to-yellow-500 flex flex-col justify-between p-2.5 text-white" />
+                        <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition-all duration-300" />
+                        <div className="absolute top-2.5 right-2.5 bg-black/50 backdrop-blur-md px-1.5 py-0.5 rounded text-[9px] font-bold text-white uppercase tracking-wider">
+                          {post.type || 'POST'}
+                        </div>
+                        <div className="absolute bottom-2.5 left-2.5 z-10 flex gap-3 text-[10px] font-bold text-white">
+                          <span className="flex items-center gap-1 bg-black/45 backdrop-blur-sm px-1.5 py-0.5 rounded">
+                            <Heart className="w-3 h-3 fill-white text-white" /> {post.likes}
+                          </span>
+                          <span className="flex items-center gap-1 bg-black/45 backdrop-blur-sm px-1.5 py-0.5 rounded">
+                            <MessageSquare className="w-3 h-3 fill-white text-white" /> {post.comments}
+                          </span>
+                        </div>
                       </div>
-                      <div className="z-10 flex gap-3 text-[10px] font-bold">
-                        <span className="flex items-center gap-1 bg-black/40 backdrop-blur-sm px-1.5 py-0.5 rounded">
-                          <Heart className="w-3 h-3 fill-white text-white" /> {post.likes}
-                        </span>
-                        <span className="flex items-center gap-1 bg-black/40 backdrop-blur-sm px-1.5 py-0.5 rounded">
-                          <MessageSquare className="w-3 h-3 fill-white text-white" /> {post.comments}
-                        </span>
+                    ) : (
+                      <div className={`aspect-square w-full rounded-xl bg-gradient-to-tr ${post.bgGradient} flex flex-col justify-between p-2.5 text-white relative shadow-inner overflow-hidden`}>
+                        <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition-all duration-300" />
+                        <div className="z-10 ml-auto bg-black/40 backdrop-blur-md px-1.5 py-0.5 rounded text-[9px] font-bold uppercase">
+                          {post.type || 'POST'}
+                        </div>
+                        <div className="z-10 flex gap-3 text-[10px] font-bold">
+                          <span className="flex items-center gap-1 bg-black/40 backdrop-blur-sm px-1.5 py-0.5 rounded">
+                            <Heart className="w-3 h-3 fill-white text-white" /> {post.likes}
+                          </span>
+                          <span className="flex items-center gap-1 bg-black/40 backdrop-blur-sm px-1.5 py-0.5 rounded">
+                            <MessageSquare className="w-3 h-3 fill-white text-white" /> {post.comments}
+                          </span>
+                        </div>
                       </div>
-                    </div>
+                    )}
                     {/* Caption preview */}
                     <p className="text-[11px] text-zinc-600 line-clamp-2 leading-relaxed px-1">
-                      {post.caption}
+                      {post.caption || '(No caption)'}
                     </p>
                   </div>
 
@@ -237,7 +349,7 @@ export default function HomeDashboard() {
                     ) : (
                       <Link 
                         href={`/dashboard/automations/new?post_id=${post.id}`}
-                        className="w-full py-1.5 rounded-xl bg-[#d2ff00] hover:bg-[#c1f000] transition text-center text-xs font-extrabold text-zinc-950 block shadow-sm"
+                        className="w-full py-1.5 rounded-xl btn-gradient text-white text-center text-xs font-bold block shadow-sm"
                       >
                         Set up Automation
                       </Link>
@@ -402,51 +514,41 @@ export default function HomeDashboard() {
             )}
           </div>
 
-          {/* Know Your Audience (Locked Analytics Mock) */}
+          {/* Know Your Audience */}
           <div className="bg-white border border-zinc-200 rounded-2xl p-6 relative overflow-hidden shadow-sm">
             <div className="flex flex-col gap-0.5 mb-6">
               <h3 className="text-sm font-extrabold text-zinc-950">Know your audience</h3>
               <span className="text-xs text-zinc-450">Best hours to post and where your followers live</span>
             </div>
 
-            {/* Blurred visual representation of dashboard chart cards */}
-            <div className="grid grid-cols-2 gap-4 filter blur-[3.5px] opacity-25 select-none pointer-events-none">
-              <div className="h-28 bg-zinc-100 rounded-xl p-3 border border-zinc-200">
-                <div className="w-12 h-3 bg-zinc-300 rounded" />
-                <div className="flex items-end gap-1.5 mt-4 h-12">
-                  <div className="w-full h-8 bg-zinc-200 rounded-sm" />
-                  <div className="w-full h-12 bg-zinc-200 rounded-sm" />
-                  <div className="w-full h-6 bg-zinc-200 rounded-sm" />
-                  <div className="w-full h-10 bg-zinc-200 rounded-sm" />
+            {/* Visual representation of dashboard charts */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="h-28 bg-zinc-50 rounded-xl p-3 border border-zinc-200 flex flex-col justify-between">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Peak Posting Hours</span>
+                <div className="flex items-end gap-1.5 h-12 mt-1">
+                  <div className="w-full h-8 bg-purple-100 rounded-sm" />
+                  <div className="w-full h-12 bg-purple-500 rounded-sm" />
+                  <div className="w-full h-6 bg-purple-200 rounded-sm" />
+                  <div className="w-full h-10 bg-purple-400 rounded-sm" />
                 </div>
               </div>
-              <div className="h-28 bg-zinc-100 rounded-xl p-3 border border-zinc-200">
-                <div className="w-16 h-3 bg-zinc-300 rounded" />
-                <div className="flex flex-col gap-1.5 mt-3">
-                  <div className="h-2 w-3/4 bg-zinc-200 rounded" />
-                  <div className="h-2 w-1/2 bg-zinc-200 rounded" />
-                  <div className="h-2 w-2/3 bg-zinc-200 rounded" />
+              <div className="h-28 bg-zinc-50 rounded-xl p-3 border border-zinc-200 flex flex-col justify-between">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Top Cities</span>
+                <div className="flex flex-col gap-2 mt-1 text-[10px] font-bold text-zinc-700">
+                  <div className="flex justify-between items-center">
+                    <span>New York</span>
+                    <span className="text-zinc-500">42%</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span>London</span>
+                    <span className="text-zinc-500">28%</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span>Tokyo</span>
+                    <span className="text-zinc-500">15%</span>
+                  </div>
                 </div>
               </div>
-            </div>
-
-            {/* Absolute Locked CTA */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/70 backdrop-blur-[1px] p-6 text-center">
-              <div className="w-10 h-10 rounded-full bg-zinc-50 border border-zinc-200 flex items-center justify-center text-zinc-800 shadow-sm mb-3">
-                <Lock className="w-4 h-4" />
-              </div>
-              <h4 className="text-sm font-extrabold text-zinc-950">
-                Unlock hourly engagement charts and audience geography.
-              </h4>
-              <p className="text-xs text-zinc-500 mt-1 max-w-sm">
-                Find your peak times and biggest fan cities to make every post go viral.
-              </p>
-              <Link 
-                href="/dashboard/billing"
-                className="mt-4 bg-[#d2ff00] hover:bg-[#c1f000] text-zinc-950 text-xs font-extrabold px-5 py-2.5 rounded-full shadow-sm transition border border-zinc-950/10"
-              >
-                Upgrade to Pro
-              </Link>
             </div>
           </div>
 

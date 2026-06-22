@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useState } from 'react';
+import React, { Suspense, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useApp } from '@/context/AppContext';
@@ -12,6 +12,64 @@ function ContentPageContent() {
 
   const { activeAccountId, accounts, automations, events } = useApp();
   const activeAccount = accounts.find(a => a.id === activeAccountId);
+
+  const [realPosts, setRealPosts] = useState<any[]>([]);
+  const [realStories, setRealStories] = useState<any[]>([]);
+  const [loadingMedia, setLoadingMedia] = useState(false);
+
+  useEffect(() => {
+    if (!activeAccountId) {
+      setRealPosts([]);
+      setRealStories([]);
+      return;
+    }
+    
+    async function fetchMedia() {
+      setLoadingMedia(true);
+      try {
+        const res = await fetch(`/api/instagram/media?accountId=${activeAccountId}`);
+        const data = await res.json();
+        if (data.success && data.posts) {
+          const allItems = data.posts.map((item: any) => {
+            const hasAutomation = automations.some(aut => 
+              aut.instagram_account_id === activeAccountId &&
+              (
+                aut.trigger_post_id === item.id || 
+                (aut.trigger_type === 'comment' && aut.trigger_post_id === 'all_posts')
+              )
+            );
+            return {
+              id: item.id,
+              caption: item.caption,
+              likes: item.likeCount || 0,
+              comments: item.commentsCount || 0,
+              views: item.viewsCount || Math.floor((item.likeCount || 0) * 8.5 + (item.commentsCount || 0) * 12.2) || 45,
+              isAutomated: hasAutomation,
+              mediaUrl: item.mediaUrl,
+              permalink: item.permalink,
+              thumbnailUrl: item.thumbnailUrl || item.thumbnail,
+              bgGradient: item.type === 'story' ? 'from-amber-400 via-pink-500 to-purple-650' : 'from-pink-500 via-red-500 to-yellow-500',
+              type: item.type
+            };
+          });
+
+          setRealPosts(allItems.filter((item: any) => item.type !== 'story'));
+          setRealStories(allItems.filter((item: any) => item.type === 'story'));
+        } else {
+          setRealPosts([]);
+          setRealStories([]);
+        }
+      } catch (err) {
+        console.error("Failed to fetch real media in Content Page:", err);
+        setRealPosts([]);
+        setRealStories([]);
+      } finally {
+        setLoadingMedia(false);
+      }
+    }
+    
+    fetchMedia();
+  }, [activeAccountId, automations]);
 
   if (!activeAccountId || !activeAccount) {
     return (
@@ -87,7 +145,9 @@ function ContentPageContent() {
     }
   ];
 
-  const currentItems = type === 'stories' ? mockStories : mockPosts;
+  const displayedPosts = realPosts.length > 0 ? realPosts : mockPosts;
+  const displayedStories = realStories.length > 0 ? realStories : mockStories;
+  const currentItems = type === 'stories' ? displayedStories : displayedPosts;
   const isStories = type === 'stories';
 
   return (
@@ -151,10 +211,26 @@ function ContentPageContent() {
                     <td className="p-4 pl-5">
                       <div className="flex items-center gap-3">
                         {/* Thumbnail */}
-                        <div className={`w-12 h-12 rounded-lg bg-gradient-to-tr ${item.bgGradient} flex-shrink-0 flex items-center justify-center text-[8px] font-bold text-white relative shadow-inner overflow-hidden`}>
-                          <div className="absolute inset-0 bg-black/10" />
-                          <span className="z-10 text-[8px] tracking-widest font-extrabold uppercase">{isStories ? 'STORY' : 'POST'}</span>
-                        </div>
+                        {item.mediaUrl ? (
+                          <div className="w-12 h-12 rounded-lg flex-shrink-0 overflow-hidden relative border border-zinc-200 shadow-inner">
+                            <img 
+                              src={item.mediaUrl} 
+                              alt="Thumbnail" 
+                              className="w-full h-full object-cover" 
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                const fallback = e.currentTarget.parentElement?.querySelector('.fallback-gradient');
+                                if (fallback) fallback.classList.remove('hidden');
+                              }}
+                            />
+                            <div className="fallback-gradient hidden absolute inset-0 bg-gradient-to-tr from-pink-500 to-yellow-500" />
+                          </div>
+                        ) : (
+                          <div className={`w-12 h-12 rounded-lg bg-gradient-to-tr ${item.bgGradient} flex-shrink-0 flex items-center justify-center text-[8px] font-bold text-white relative shadow-inner overflow-hidden`}>
+                            <div className="absolute inset-0 bg-black/10" />
+                            <span className="z-10 text-[8px] tracking-widest font-extrabold uppercase">{isStories ? 'STORY' : 'POST'}</span>
+                          </div>
+                        )}
                         {/* Caption preview */}
                         <p className="text-zinc-650 line-clamp-2 max-w-[240px] leading-relaxed">
                           {item.caption}
@@ -163,7 +239,7 @@ function ContentPageContent() {
                     </td>
                     <td className="p-4">
                       {item.isAutomated ? (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#d2ff00]/30 text-zinc-900 border border-[#d2ff00]">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
                           Automated
                         </span>
                       ) : (
@@ -203,7 +279,7 @@ function ContentPageContent() {
                       ) : (
                         <Link
                           href={`/dashboard/automations/new?post_id=${item.id}`}
-                          className="inline-flex items-center gap-1 bg-[#d2ff00] hover:bg-[#c1f000] text-[10px] font-extrabold text-zinc-950 px-3 py-1.5 rounded-xl shadow-sm transition"
+                          className="inline-flex items-center gap-1 btn-gradient text-[10px] font-bold text-white px-3 py-1.5 rounded-xl shadow-sm transition"
                         >
                           Set up Automation
                         </Link>

@@ -63,7 +63,7 @@ export default function TemplatesPage() {
                   <div className="w-10 h-10 rounded-xl bg-zinc-50 border border-zinc-200 flex items-center justify-center text-zinc-900 shrink-0">
                     <Icon className="w-5 h-5" />
                   </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#d2ff00]/30 text-zinc-800 border border-[#d2ff00]">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
                     {tpl.badge}
                   </span>
                 </div>
