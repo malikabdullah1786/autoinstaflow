@@ -195,6 +195,8 @@ export default function HomeDashboard() {
     }
   ];
 
+  const displayedPosts = realPosts.length > 0 ? realPosts : mockPosts;
+
   // Dynamic Metrics calculations based on actual db events
   const totalDMsSentToday = events.filter(
     ev => ev.workspace_id === workspace?.id && 
