@@ -33,6 +33,8 @@ interface AppContextType {
   templates: Template[];
   activeAccountId: string;
   setActiveAccountId: (id: string) => void;
+  activeAccountPosts: any[];
+  isLoadingPosts: boolean;
   isBannerDismissed: boolean;
   loading: boolean;
   
@@ -105,8 +107,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [events, setEvents] = useState<AutomationEvent[]>([]);
   const [rewindLogs, setRewindLogs] = useState<RewindLog[]>([]);
   const [activeAccountId, setActiveAccountId] = useState<string>('');
+  const [activeAccountPosts, setActiveAccountPosts] = useState<any[]>([]);
+  const [isLoadingPosts, setIsLoadingPosts] = useState<boolean>(false);
   const [isBannerDismissed, setIsBannerDismissed] = useState<boolean>(false);
   const [mounted, setMounted] = useState(false);
+
+  // Fetch real posts of the active Instagram Account
+  useEffect(() => {
+    async function fetchPosts() {
+      if (!activeAccountId) {
+        setActiveAccountPosts([]);
+        return;
+      }
+      setIsLoadingPosts(true);
+      try {
+        const res = await fetch(`/api/instagram/media?accountId=${activeAccountId}`);
+        const data = await res.json();
+        if (data.success && data.posts) {
+          setActiveAccountPosts(data.posts);
+        } else {
+          setActiveAccountPosts([]);
+        }
+      } catch (err) {
+        console.error("Failed to fetch instagram media:", err);
+        setActiveAccountPosts([]);
+      } finally {
+        setIsLoadingPosts(false);
+      }
+    }
+    fetchPosts();
+  }, [activeAccountId]);
 
   // Initialize state from Supabase or LocalStorage on mount
   useEffect(() => {
@@ -1512,6 +1542,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         templates: SYSTEM_TEMPLATES,
         activeAccountId,
         setActiveAccountId,
+        activeAccountPosts,
+        isLoadingPosts,
         isBannerDismissed,
         loading: !mounted,
         signInGoogle,

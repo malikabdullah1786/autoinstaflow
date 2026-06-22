@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import { useApp } from '@/context/AppContext';
-import { MOCK_IG_ITEMS } from '@/lib/instagramMock';
 import { 
   Sparkles, 
   Send, 
@@ -34,22 +33,32 @@ export default function SimulatorPage() {
     automations, 
     contacts,
     deleteContact,
-    simulateInstagramInteraction 
+    simulateInstagramInteraction,
+    activeAccountPosts
   } = useApp();
 
   const activeAccount = accounts.find(a => a.id === activeAccountId);
-  const igPosts = MOCK_IG_ITEMS.filter(item => item.type === 'post' || item.type === 'reel');
-  const igStories = MOCK_IG_ITEMS.filter(item => item.type === 'story');
+  const igPosts = activeAccountPosts.filter(item => item.type === 'post' || item.type === 'reel');
+  const igStories = activeAccountPosts.filter(item => item.type === 'story');
 
   // Form State
   const [simUsername, setSimUsername] = useState('john_doe');
   const [simText, setSimText] = useState('LINK');
   const [simTrigger, setSimTrigger] = useState<'comment' | 'dm' | 'story_reply'>('comment');
-  const [simPostId, setSimPostId] = useState(MOCK_IG_ITEMS[0].id);
+  const [simPostId, setSimPostId] = useState('');
   const [simIsFollowing, setSimIsFollowing] = useState(true);
   const [simEmail, setSimEmail] = useState('');
   const [chatInput, setChatInput] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Set default selection when posts load
+  React.useEffect(() => {
+    if (simTrigger === 'comment' && igPosts.length > 0) {
+      setSimPostId(igPosts[0].id);
+    } else if (simTrigger === 'story_reply' && igStories.length > 0) {
+      setSimPostId(igStories[0].id);
+    }
+  }, [activeAccountPosts, simTrigger]);
 
   // Simulation Outcomes
   const [simOutcome, setSimOutcome] = useState<{ success: boolean; outcome: string; details?: string } | null>(null);
@@ -140,14 +149,14 @@ export default function SimulatorPage() {
       }
 
       // Call the actual interaction simulator
-      const postInfo = MOCK_IG_ITEMS.find(p => p.id === simPostId);
+      const postInfo = activeAccountPosts.find(p => p.id === simPostId);
       const res = await simulateInstagramInteraction(
         simText,
         simUsername.replace('@', '').trim(),
         simTrigger,
         simTrigger === 'comment' ? {
           post_id: simPostId,
-          post_url: postInfo?.url || '',
+          post_url: postInfo?.permalink || postInfo?.url || '',
           post_thumbnail: postInfo?.thumbnail || ''
         } : undefined,
         { isFollowing: simIsFollowing, email: simEmail }
@@ -341,34 +350,56 @@ export default function SimulatorPage() {
               {simTrigger === 'comment' && (
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-bold text-zinc-600 uppercase tracking-wider">On Post / Reel</label>
-                  <select
-                    value={simPostId}
-                    onChange={(e) => setSimPostId(e.target.value)}
-                    className="w-full bg-white border border-zinc-200 rounded-lg p-2.5 text-xs text-zinc-700 focus:outline-none focus:border-purple-500 shadow-sm"
-                  >
-                    {igPosts.map(post => (
-                      <option key={post.id} value={post.id}>
-                        {post.type.toUpperCase()}: {post.caption.substring(0, 50)}...
-                      </option>
-                    ))}
-                  </select>
+                  {igPosts.length > 0 ? (
+                    <select
+                      value={simPostId}
+                      onChange={(e) => setSimPostId(e.target.value)}
+                      className="w-full bg-white border border-zinc-200 rounded-lg p-2.5 text-xs text-zinc-700 focus:outline-none focus:border-purple-500 shadow-sm"
+                    >
+                      {igPosts.map(post => (
+                        <option key={post.id} value={post.id}>
+                          {post.type.toUpperCase()}: {post.caption.substring(0, 50)}...
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      required
+                      value={simPostId}
+                      onChange={(e) => setSimPostId(e.target.value)}
+                      placeholder="Enter Post/Media ID (e.g. 17894562)"
+                      className="w-full bg-white border border-zinc-200 rounded-lg p-2.5 text-xs text-zinc-700 focus:outline-none focus:border-purple-500 shadow-sm"
+                    />
+                  )}
                 </div>
               )}
 
               {simTrigger === 'story_reply' && (
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-bold text-zinc-600 uppercase tracking-wider">On Live Story</label>
-                  <select
-                    value={simPostId}
-                    onChange={(e) => setSimPostId(e.target.value)}
-                    className="w-full bg-white border border-zinc-200 rounded-lg p-2.5 text-xs text-zinc-700 focus:outline-none focus:border-purple-500 shadow-sm"
-                  >
-                    {igStories.map(story => (
-                      <option key={story.id} value={story.id}>
-                        STORY: {story.caption.substring(0, 50)}...
-                      </option>
-                    ))}
-                  </select>
+                  {igStories.length > 0 ? (
+                    <select
+                      value={simPostId}
+                      onChange={(e) => setSimPostId(e.target.value)}
+                      className="w-full bg-white border border-zinc-200 rounded-lg p-2.5 text-xs text-zinc-700 focus:outline-none focus:border-purple-500 shadow-sm"
+                    >
+                      {igStories.map(story => (
+                        <option key={story.id} value={story.id}>
+                          STORY: {story.caption.substring(0, 50)}...
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      required
+                      value={simPostId}
+                      onChange={(e) => setSimPostId(e.target.value)}
+                      placeholder="Enter Story ID (e.g. story_789)"
+                      className="w-full bg-white border border-zinc-200 rounded-lg p-2.5 text-xs text-zinc-700 focus:outline-none focus:border-purple-500 shadow-sm"
+                    />
+                  )}
                 </div>
               )}
 

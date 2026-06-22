@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 
 export default function RewindPage() {
-  const { workspace, activeAccountId, automations, rewindLogs, runRewind } = useApp();
+  const { workspace, activeAccountId, automations, rewindLogs, runRewind, activeAccountPosts } = useApp();
   
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
 
@@ -40,11 +40,15 @@ export default function RewindPage() {
   const [execProgress, setExecProgress] = useState(0);
   const [executionResult, setExecutionResult] = useState<{ dmsSent: number; skipped: number; quotaConsumed: number } | null>(null);
 
+  // Real comments from API
+  const [realComments, setRealComments] = useState<any[]>([]);
+  const [isLoadingComments, setIsLoadingComments] = useState(false);
+
   const activeAutomations = automations.filter(
     a => a.instagram_account_id === activeAccountId && a.trigger_type === 'comment'
   );
 
-  const posts = MOCK_IG_ITEMS.filter(item => item.type === 'post' || item.type === 'reel');
+  const posts = activeAccountPosts;
   const selectedPost = posts.find(p => p.id === selectedPostId);
   const selectedAutomation = activeAutomations.find(a => a.id === selectedAutomationId);
 
@@ -56,7 +60,33 @@ export default function RewindPage() {
     if (activeAutomations.length > 0 && !selectedAutomationId) {
       setSelectedAutomationId(activeAutomations[0].id);
     }
-  }, [activeAccountId]);
+  }, [activeAccountId, posts, activeAutomations]);
+
+  // Fetch comments of selected post/reel
+  useEffect(() => {
+    async function fetchPostComments() {
+      if (!selectedPostId || !activeAccountId) {
+        setRealComments([]);
+        return;
+      }
+      setIsLoadingComments(true);
+      try {
+        const res = await fetch(`/api/instagram/comments?mediaId=${selectedPostId}&accountId=${activeAccountId}`);
+        const data = await res.json();
+        if (data.success && data.comments) {
+          setRealComments(data.comments);
+        } else {
+          setRealComments([]);
+        }
+      } catch (err) {
+        console.error("Failed to fetch post comments:", err);
+        setRealComments([]);
+      } finally {
+        setIsLoadingComments(false);
+      }
+    }
+    fetchPostComments();
+  }, [selectedPostId, activeAccountId]);
 
   // Run dry run simulation
   const handleStartDryRun = () => {
@@ -73,7 +103,7 @@ export default function RewindPage() {
           setScanning(false);
           
           // Generate scan matches based on comment texts
-          const results = selectedPost.commentsList.map(comment => {
+          const results = realComments.map(comment => {
             const isMatch = checkKeywordMatch(comment.text, selectedAutomation.trigger_config.keywords || []);
             let reason = 'Matches trigger keywords';
             
@@ -120,7 +150,7 @@ export default function RewindPage() {
     const res = await runRewind(
       selectedAutomation.id,
       selectedPost.id,
-      selectedPost.commentsList.map(c => ({
+      realComments.map(c => ({
         id: c.id,
         username: c.username,
         text: c.text

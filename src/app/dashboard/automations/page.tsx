@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
-import { MOCK_IG_ITEMS } from '@/lib/instagramMock';
 import { 
   Play, 
   Pause, 
@@ -23,7 +22,8 @@ export default function AutomationsPage() {
     activeAccountId, 
     automations, 
     toggleAutomationStatus, 
-    deleteAutomation 
+    deleteAutomation,
+    activeAccountPosts
   } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -44,7 +44,7 @@ export default function AutomationsPage() {
   // "If any Instagram post published within the last 7 days has no associated Automation, 
   // then the Platform shall display a warning banner indicating the number of unautomated recent posts."
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const recentPosts = MOCK_IG_ITEMS.filter(
+  const recentPosts = activeAccountPosts.filter(
     item => (item.type === 'post' || item.type === 'reel') && new Date(item.publishedAt) > sevenDaysAgo
   );
 

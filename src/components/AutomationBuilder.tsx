@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/context/AppContext';
-import { MOCK_IG_ITEMS } from '@/lib/instagramMock';
 import { Automation, TriggerType, ActionType, PlanType } from '@/lib/db';
 import { 
   Sparkles, 
@@ -25,7 +24,7 @@ interface AutomationBuilderProps {
 
 export const AutomationBuilder: React.FC<AutomationBuilderProps> = ({ initialData }) => {
   const router = useRouter();
-  const { workspace, accounts, activeAccountId, saveAutomation, upgradePlan } = useApp();
+  const { workspace, accounts, activeAccountId, saveAutomation, upgradePlan, activeAccountPosts } = useApp();
   
   const [name, setName] = useState(initialData?.name || 'My New Automation');
   const [triggerType, setTriggerType] = useState<TriggerType>(initialData?.trigger_type || 'comment');
@@ -44,8 +43,8 @@ export const AutomationBuilder: React.FC<AutomationBuilderProps> = ({ initialDat
   const [showUpgradePrompt, setShowUpgradePrompt] = useState<string | null>(null);
 
   // Set default post selection if empty and comments triggers
-  const igPosts = MOCK_IG_ITEMS.filter(item => item.type === 'post' || item.type === 'reel');
-  const igStories = MOCK_IG_ITEMS.filter(item => item.type === 'story');
+  const igPosts = activeAccountPosts.filter(item => item.type === 'post' || item.type === 'reel');
+  const igStories = activeAccountPosts.filter(item => item.type === 'story');
 
   useEffect(() => {
     // If starting a new post-specific automation, prefill post
@@ -56,7 +55,7 @@ export const AutomationBuilder: React.FC<AutomationBuilderProps> = ({ initialDat
         setPostId(igStories[0].id);
       }
     }
-  }, [triggerType]);
+  }, [triggerType, igPosts, igStories]);
 
   // Read URL query params on mount for post prefilling (e.g. from Today's Actions)
   useEffect(() => {
@@ -66,14 +65,14 @@ export const AutomationBuilder: React.FC<AutomationBuilderProps> = ({ initialDat
       if (postParam) {
         setPostId(postParam);
         // Find if post exists
-        const matched = MOCK_IG_ITEMS.find(p => p.id === postParam);
+        const matched = activeAccountPosts.find(p => p.id === postParam);
         if (matched) {
           setTriggerType(matched.type === 'story' ? 'story_reply' : 'comment');
-          setName(`Automation for Post ${postParam.split('_')[1]}`);
+          setName(`Automation for Post ${postParam}`);
         }
       }
     }
-  }, []);
+  }, [activeAccountPosts]);
 
   const activeAccount = accounts.find(a => a.id === activeAccountId);
 
@@ -92,7 +91,7 @@ export const AutomationBuilder: React.FC<AutomationBuilderProps> = ({ initialDat
       .map(k => k.trim())
       .filter(k => k !== '');
 
-    const selectedPost = MOCK_IG_ITEMS.find(p => p.id === postId);
+    const selectedPost = activeAccountPosts.find(p => p.id === postId);
 
     // Build payload
     const payload: Partial<Automation> = {
@@ -101,7 +100,7 @@ export const AutomationBuilder: React.FC<AutomationBuilderProps> = ({ initialDat
       trigger_type: triggerType,
       trigger_config: {
         post_id: triggerType !== 'dm' ? postId : undefined,
-        post_url: triggerType !== 'dm' && selectedPost ? selectedPost.url : undefined,
+        post_url: triggerType !== 'dm' && selectedPost ? (selectedPost.permalink || selectedPost.url) : undefined,
         post_thumbnail: triggerType !== 'dm' && selectedPost ? selectedPost.thumbnail : undefined,
         keywords: keywordList,
       },
@@ -217,15 +216,24 @@ export const AutomationBuilder: React.FC<AutomationBuilderProps> = ({ initialDat
                         className="w-10 h-10 object-cover rounded border border-zinc-200 shrink-0"
                       />
                       <div className="flex flex-col justify-center min-w-0">
-                        <span className="text-[10px] font-bold text-zinc-800 uppercase">{post.type} {post.id.split('_')[1]}</span>
+                        <span className="text-[10px] font-bold text-zinc-800 uppercase">{post.type} {post.id.split('_')[1] || post.id}</span>
                         <p className="text-[10px] text-zinc-500 truncate leading-relaxed max-w-[150px]">
                           {post.caption}
                         </p>
                       </div>
                     </button>
                   ))}
-                  {(triggerType === 'story_reply' && igStories.length === 0) && (
-                    <span className="text-xs text-zinc-500 col-span-2 py-4 text-center">No active stories available.</span>
+                  {((triggerType === 'comment' ? igPosts : igStories).length === 0) && (
+                    <div className="col-span-2 flex flex-col gap-2 p-2 w-full">
+                      <span className="text-xs text-zinc-500">No posts or reels loaded from your account. You can enter a custom Media ID:</span>
+                      <input
+                        type="text"
+                        value={postId}
+                        onChange={(e) => setPostId(e.target.value)}
+                        placeholder="e.g. 17894562"
+                        className="glass-input text-xs w-full"
+                      />
+                    </div>
                   )}
                 </div>
               </div>
