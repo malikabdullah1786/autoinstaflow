@@ -8,7 +8,8 @@ import {
   HelpCircle, 
   LogOut, 
   ShieldCheck,
-  CheckCircle
+  CheckCircle,
+  AlertTriangle
 } from 'lucide-react';
 
 import { getAccountLimitForPlan } from '@/lib/db';
@@ -27,6 +28,7 @@ export default function ConnectPage() {
   const router = useRouter();
   const accountLimit = workspace ? getAccountLimitForPlan(workspace.plan) : 1;
   const [linkError, setLinkError] = useState('');
+  const [accountToDisconnect, setAccountToDisconnect] = useState<any | null>(null);
   const [usernameInput, setUsernameInput] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [foundAccount, setFoundAccount] = useState<{
@@ -403,16 +405,12 @@ export default function ConnectPage() {
                         </span>
                       </div>
                     </div>
-                    <button
-                      onClick={() => {
-                        if (confirm(`Are you sure you want to disconnect @${acc.username}? This will pause all associated automations.`)) {
-                          removeInstagramAccount(acc.id);
-                        }
-                      }}
-                      className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 text-xs font-bold rounded-xl border border-red-150 transition shadow-sm shrink-0"
-                    >
-                      Disconnect
-                    </button>
+                     <button
+                       onClick={() => setAccountToDisconnect(acc)}
+                       className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 text-xs font-bold rounded-xl border border-red-150 transition shadow-sm shrink-0"
+                     >
+                       Disconnect
+                     </button>
                   </div>
                 ))}
               </div>
@@ -430,6 +428,44 @@ export default function ConnectPage() {
 
 
 
+      {/* Custom Disconnect Confirmation Modal */}
+      {accountToDisconnect && (
+        <div className="fixed inset-0 bg-zinc-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-all duration-300 text-center">
+          <div className="bg-white border border-zinc-150 rounded-3xl shadow-2xl p-6 max-w-sm w-full flex flex-col gap-4 text-center transform scale-100 transition-all duration-300 animate-in fade-in zoom-in-95">
+            <div className="w-12 h-12 rounded-full bg-red-50 text-red-500 flex items-center justify-center mx-auto shrink-0 shadow-inner">
+              <AlertTriangle className="w-6 h-6 stroke-[2.5]" />
+            </div>
+            
+            <div className="flex flex-col gap-1.5 text-left">
+              <h3 className="text-lg font-extrabold text-zinc-900 text-center">Disconnect Account?</h3>
+              <p className="text-zinc-550 text-xs font-medium leading-relaxed mt-1">
+                Are you sure you want to disconnect <span className="text-zinc-900 font-bold">@{accountToDisconnect.username}</span>? This will pause all associated automations.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 mt-2">
+              <button
+                type="button"
+                onClick={() => setAccountToDisconnect(null)}
+                className="flex-1 px-4 py-2.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-650 hover:text-zinc-800 text-xs font-extrabold rounded-xl border border-zinc-200/60 transition shadow-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const id = accountToDisconnect.id;
+                  setAccountToDisconnect(null);
+                  await removeInstagramAccount(id);
+                }}
+                className="flex-1 px-4 py-2.5 bg-gradient-to-r from-red-500 to-red-650 hover:from-red-600 hover:to-red-700 text-white text-xs font-extrabold rounded-xl border border-red-600/20 transition shadow-md shadow-red-500/10 hover:shadow-red-500/20"
+              >
+                Yes, Disconnect
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

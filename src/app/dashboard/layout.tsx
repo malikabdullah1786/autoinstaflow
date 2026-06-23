@@ -78,6 +78,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showLinkModal, setShowLinkModal] = useState(false);
+  const [accountToDisconnect, setAccountToDisconnect] = useState<any | null>(null);
   const [linkError, setLinkError] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [myContentOpen, setMyContentOpen] = useState(true);
@@ -258,9 +259,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (confirm(`Are you sure you want to disconnect @${acc.username}? This will pause all associated automations.`)) {
-                          removeInstagramAccount(acc.id);
-                        }
+                        setAccountToDisconnect(acc);
                       }}
                       className={`p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-red-50 text-red-500 transition shrink-0 ${acc.id === activeAccountId ? 'text-purple-100 hover:bg-purple-750 hover:text-white' : ''}`}
                       title="Disconnect Account"
@@ -657,6 +656,44 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="flex items-center justify-center gap-1.5 text-zinc-400 text-[10px] font-semibold mt-1">
               <ShieldCheck className="w-3.5 h-3.5 text-green-500 shrink-0" />
               Meta Secure Authorization
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Custom Disconnect Confirmation Modal */}
+      {accountToDisconnect && (
+        <div className="fixed inset-0 bg-zinc-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-all duration-300">
+          <div className="bg-white border border-zinc-150 rounded-3xl shadow-2xl p-6 max-w-sm w-full flex flex-col gap-4 text-center transform scale-100 transition-all duration-300 animate-in fade-in zoom-in-95">
+            <div className="w-12 h-12 rounded-full bg-red-50 text-red-500 flex items-center justify-center mx-auto shrink-0 shadow-inner">
+              <AlertTriangle className="w-6 h-6 stroke-[2.5]" />
+            </div>
+            
+            <div className="flex flex-col gap-1.5 text-left">
+              <h3 className="text-lg font-extrabold text-zinc-900 text-center">Disconnect Account?</h3>
+              <p className="text-zinc-550 text-xs font-medium leading-relaxed mt-1">
+                Are you sure you want to disconnect <span className="text-zinc-900 font-bold">@{accountToDisconnect.username}</span>? This will pause all associated automations.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 mt-2">
+              <button
+                type="button"
+                onClick={() => setAccountToDisconnect(null)}
+                className="flex-1 px-4 py-2.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-650 hover:text-zinc-800 text-xs font-extrabold rounded-xl border border-zinc-200/60 transition shadow-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const id = accountToDisconnect.id;
+                  setAccountToDisconnect(null);
+                  await removeInstagramAccount(id);
+                }}
+                className="flex-1 px-4 py-2.5 bg-gradient-to-r from-red-500 to-red-650 hover:from-red-600 hover:to-red-700 text-white text-xs font-extrabold rounded-xl border border-red-600/20 transition shadow-md shadow-red-500/10 hover:shadow-red-500/20"
+              >
+                Yes, Disconnect
+              </button>
             </div>
           </div>
         </div>
