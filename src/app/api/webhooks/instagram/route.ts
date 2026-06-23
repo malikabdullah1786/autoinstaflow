@@ -381,12 +381,18 @@ export async function POST(req: Request) {
             try {
               const profileRes = await fetch(`https://graph.instagram.com/v20.0/${senderId}?fields=username,is_user_follow_business&access_token=${account.access_token}`);
               const profileData = await profileRes.json();
-              if (profileData) {
+              if (profileRes.ok && profileData) {
                 if (profileData.username) {
                   senderUsername = profileData.username;
                 }
                 if (profileData.is_user_follow_business !== undefined) {
                   isUserFollowBusiness = profileData.is_user_follow_business;
+                }
+              } else if (profileData && profileData.error) {
+                if (profileData.error.code === 230) {
+                  console.log(`[Webhook Messaging] User consent required for sender ID ${senderId} to access profile. This is expected behavior from Meta API.`);
+                } else {
+                  console.warn(`[Webhook Messaging] Meta profile API returned error:`, profileData.error);
                 }
               }
             } catch (profileErr) {
@@ -881,7 +887,15 @@ async function checkInstagramFollowStatus(senderId: string, accessToken: string)
   try {
     const res = await fetch(`https://graph.instagram.com/v20.0/${senderId}?fields=is_user_follow_business&access_token=${accessToken}`);
     if (!res.ok) {
-      console.error('Failed to check follow status:', await res.text());
+      const errText = await res.text();
+      try {
+        const errJson = JSON.parse(errText);
+        if (errJson.error?.code === 230) {
+          console.log(`[Follow Gate] User consent required to check follow status for sender ID ${senderId}. This is standard Meta API behavior before direct messaging is established.`);
+          return false;
+        }
+      } catch (e) {}
+      console.error('Failed to check follow status:', errText);
       return false;
     }
     const data = await res.json();

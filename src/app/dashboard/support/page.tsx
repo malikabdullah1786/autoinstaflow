@@ -22,7 +22,7 @@ export default function SupportPage() {
       a: "Our system listens for Meta webhooks. When a user writes a comment on your post or reel, the webhook fires, and our system sends the configured DM response within seconds."
     },
     {
-      q: "Does AutoInstaFlow support carousel posts?",
+      q: "Does Auto Insta Flow support carousel posts?",
       a: "Yes, you can configure comment automation rules to target specific posts (including carousels and reels) or apply rules globally to all your content."
     },
     {

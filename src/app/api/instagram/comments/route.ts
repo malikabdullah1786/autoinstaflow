@@ -32,7 +32,7 @@ export async function GET(req: Request) {
     }
 
     // 2. Fetch comments from Instagram Media Graph API
-    const commentsUrl = `https://graph.instagram.com/${mediaId}/comments?fields=id,text,username,timestamp&limit=50&access_token=${account.access_token}`;
+    const commentsUrl = `https://graph.instagram.com/${mediaId}/comments?fields=id,text,username,from,timestamp&limit=50&access_token=${account.access_token}`;
     
     const commentsRes = await fetch(commentsUrl);
     const commentsData = await commentsRes.json();
@@ -48,7 +48,7 @@ export async function GET(req: Request) {
 
     const comments = (commentsData.data || []).map((c: any) => ({
       id: c.id,
-      username: c.username || 'anonymous',
+      username: c.from?.username || c.username || 'anonymous',
       text: c.text || '',
       timestamp: c.timestamp || new Date().toISOString()
     }));

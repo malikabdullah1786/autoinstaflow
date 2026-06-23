@@ -257,7 +257,7 @@ export default function HomeDashboard() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-3xl font-extrabold text-zinc-950 tracking-tight font-sans">
-              {activeAccount ? `Welcome @${activeAccount.username}!` : `Welcome to AutoInstaFlow!`}
+              {activeAccount ? `Welcome @${activeAccount.username}!` : `Welcome to Auto Insta Flow!`}
             </h1>
             <p className="text-xs text-zinc-450 mt-1">
               Connected workspace: <strong>{workspace?.name}</strong> • Plan: <span className="uppercase font-bold text-zinc-700">{workspace?.plan}</span>

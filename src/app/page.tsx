@@ -116,7 +116,7 @@ export default function LandingPage() {
         <header className="bg-white/80 backdrop-blur-xl border border-zinc-200/80 rounded-full px-6 py-3 flex items-center justify-between shadow-[0_10px_40px_rgba(0,0,0,0.04)] relative">
           <Link href="/" className="flex items-center gap-1 group">
             <span className="font-extrabold text-base tracking-tight text-zinc-900 flex items-center gap-1">
-              AutoInstaFlow <span className="text-purple-600 font-black leading-none text-lg">+</span>
+              Auto Insta Flow <span className="text-purple-600 font-black leading-none text-lg">+</span>
             </span>
           </Link>
 
@@ -920,7 +920,7 @@ export default function LandingPage() {
                 A
               </div>
               <span className="font-extrabold text-lg tracking-tight text-zinc-900">
-                AutoInstaFlow <span className="text-purple-600">+</span>
+                Auto Insta Flow <span className="text-purple-600">+</span>
               </span>
             </Link>
             <p className="text-zinc-500 text-xs max-w-xs leading-relaxed">

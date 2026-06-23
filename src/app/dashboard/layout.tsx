@@ -160,7 +160,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Logo */}
         <div className="flex items-center justify-between px-2 pt-1">
           <span className="font-extrabold text-sm tracking-wider text-zinc-950 uppercase font-sans">
-            AUTOINSTAFLOW
+            AUTO INSTA FLOW
           </span>
           <button className="text-zinc-350 hover:text-zinc-655 transition">
             <svg className="w-3.5 h-3.5 text-zinc-400 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
