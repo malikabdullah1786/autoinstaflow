@@ -16,6 +16,7 @@ function ContentPageContent() {
   const [realPosts, setRealPosts] = useState<any[]>([]);
   const [realStories, setRealStories] = useState<any[]>([]);
   const [loadingMedia, setLoadingMedia] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!activeAccountId) {
@@ -71,12 +72,17 @@ function ContentPageContent() {
     fetchMedia();
   }, [activeAccountId, automations]);
 
-  const handleRemoveAutomation = async (postId: string) => {
+  const handleRemoveAutomation = (postId: string) => {
     const aut = automations.find(a => a.instagram_account_id === activeAccountId && a.trigger_config?.post_id === postId);
     if (aut) {
-      if (confirm('Are you sure you want to remove the automation for this post?')) {
-        await deleteAutomation(aut.id);
-      }
+      setDeleteConfirmId(aut.id);
+    }
+  };
+
+  const confirmDeleteAutomation = async () => {
+    if (deleteConfirmId) {
+      await deleteAutomation(deleteConfirmId);
+      setDeleteConfirmId(null);
     }
   };
 
@@ -154,8 +160,8 @@ function ContentPageContent() {
     }
   ];
 
-  const displayedPosts = realPosts.length > 0 ? realPosts : mockPosts;
-  const displayedStories = realStories.length > 0 ? realStories : mockStories;
+  const displayedPosts = realPosts;
+  const displayedStories = realStories;
   const currentItems = type === 'stories' ? displayedStories : displayedPosts;
   const isStories = type === 'stories';
 
@@ -209,98 +215,159 @@ function ContentPageContent() {
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 text-xs">
-              {currentItems.map(item => {
-                // Calculate actual events metrics for this post if automated
-                const dmCount = item.isAutomated ? 3 : 0;
-                const clicksCount = item.isAutomated ? 3 : 0;
-                const ctr = dmCount > 0 ? '100%' : '0.0%';
-
-                return (
-                  <tr key={item.id} className="hover:bg-zinc-50/50 transition">
+              {loadingMedia ? (
+                [1, 2, 3].map(idx => (
+                  <tr key={idx} className="animate-pulse">
                     <td className="p-4 pl-5">
                       <div className="flex items-center gap-3">
-                        {/* Thumbnail */}
-                        {item.mediaUrl ? (
-                          <div className="w-12 h-12 rounded-lg flex-shrink-0 overflow-hidden relative border border-zinc-200 shadow-inner">
-                            <img 
-                              src={item.thumbnailUrl || item.mediaUrl} 
-                              alt="Thumbnail" 
-                              className="w-full h-full object-cover" 
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none';
-                                const fallback = e.currentTarget.parentElement?.querySelector('.fallback-gradient');
-                                if (fallback) fallback.classList.remove('hidden');
-                              }}
-                            />
-                            <div className="fallback-gradient hidden absolute inset-0 bg-gradient-to-tr from-pink-500 to-yellow-500" />
-                          </div>
-                        ) : (
-                          <div className={`w-12 h-12 rounded-lg bg-gradient-to-tr ${item.bgGradient} flex-shrink-0 flex items-center justify-center text-[8px] font-bold text-white relative shadow-inner overflow-hidden`}>
-                            <div className="absolute inset-0 bg-black/10" />
-                            <span className="z-10 text-[8px] tracking-widest font-extrabold uppercase">{isStories ? 'STORY' : 'POST'}</span>
-                          </div>
-                        )}
-                        {/* Caption preview */}
-                        <p className="text-zinc-650 line-clamp-2 max-w-[240px] leading-relaxed">
-                          {item.caption}
-                        </p>
+                        <div className="w-12 h-12 rounded-lg bg-zinc-100 shrink-0" />
+                        <div className="h-3.5 bg-zinc-100 rounded w-48" />
                       </div>
                     </td>
                     <td className="p-4">
-                      {item.isAutomated ? (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
-                          Automated
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-50 text-zinc-450 border border-zinc-200">
-                          No Automation
-                        </span>
-                      )}
+                      <div className="h-5 bg-zinc-100 rounded-full w-20" />
                     </td>
-                    <td className="p-4 font-bold text-zinc-800">
-                      <div className="flex items-center gap-1">
-                        <Eye className="w-3.5 h-3.5 text-zinc-400" />
-                        {item.views}
-                      </div>
-                    </td>
-                    <td className="p-4 font-bold text-zinc-800">
-                      <div className="flex items-center gap-1">
-                        <Heart className="w-3.5 h-3.5 text-zinc-400" />
-                        {item.likes}
-                      </div>
-                    </td>
-                    <td className="p-4 font-bold text-zinc-800">
-                      <div className="flex items-center gap-1">
-                        <MessageSquare className="w-3.5 h-3.5 text-zinc-400" />
-                        {item.comments}
-                      </div>
-                    </td>
-                    <td className="p-4 font-bold text-zinc-800">{clicksCount}</td>
-                    <td className="p-4 font-bold text-zinc-800">{ctr}</td>
+                    <td className="p-4"><div className="h-3.5 bg-zinc-100 rounded w-8" /></td>
+                    <td className="p-4"><div className="h-3.5 bg-zinc-100 rounded w-8" /></td>
+                    <td className="p-4"><div className="h-3.5 bg-zinc-100 rounded w-8" /></td>
+                    <td className="p-4"><div className="h-3.5 bg-zinc-100 rounded w-8" /></td>
+                    <td className="p-4"><div className="h-3.5 bg-zinc-100 rounded w-8" /></td>
                     <td className="p-4 pr-5 text-right">
-                      {item.isAutomated ? (
-                        <button
-                          onClick={() => handleRemoveAutomation(item.id)}
-                          className="inline-flex items-center gap-1 bg-red-50 hover:bg-red-100 border border-red-200 text-[10px] font-bold text-red-700 px-3 py-1.5 rounded-xl shadow-sm transition"
-                        >
-                          Remove Automation
-                        </button>
-                      ) : (
-                        <Link
-                          href={`/dashboard/templates?post_id=${item.id}`}
-                          className="inline-flex items-center gap-1 btn-gradient text-[10px] font-bold text-white px-3 py-1.5 rounded-xl shadow-sm transition"
-                        >
-                          Set up Automation
-                        </Link>
-                      )}
+                      <div className="h-8 bg-zinc-100 rounded-xl w-24 ml-auto" />
                     </td>
                   </tr>
-                );
-              })}
+                ))
+              ) : currentItems.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="p-10 text-center text-zinc-500 font-medium">
+                    No {isStories ? 'stories' : 'posts or reels'} found for this connected account.
+                  </td>
+                </tr>
+              ) : (
+                currentItems.map(item => {
+                  // Calculate actual events metrics for this post if automated
+                  const dmCount = item.isAutomated ? 3 : 0;
+                  const clicksCount = item.isAutomated ? 3 : 0;
+                  const ctr = dmCount > 0 ? '100%' : '0.0%';
+
+                  return (
+                    <tr key={item.id} className="hover:bg-zinc-50/50 transition">
+                      <td className="p-4 pl-5">
+                        <div className="flex items-center gap-3">
+                          {/* Thumbnail */}
+                          {item.mediaUrl ? (
+                            <div className="w-12 h-12 rounded-lg flex-shrink-0 overflow-hidden relative border border-zinc-200 shadow-inner">
+                              <img 
+                                src={item.thumbnailUrl || item.mediaUrl} 
+                                alt="Thumbnail" 
+                                className="w-full h-full object-cover" 
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  const fallback = e.currentTarget.parentElement?.querySelector('.fallback-gradient');
+                                  if (fallback) fallback.classList.remove('hidden');
+                                }}
+                              />
+                              <div className="fallback-gradient hidden absolute inset-0 bg-gradient-to-tr from-pink-500 to-yellow-500" />
+                            </div>
+                          ) : (
+                            <div className={`w-12 h-12 rounded-lg bg-gradient-to-tr ${item.bgGradient || 'from-pink-500 to-yellow-500'} flex-shrink-0 flex items-center justify-center text-[8px] font-bold text-white relative shadow-inner overflow-hidden`}>
+                              <div className="absolute inset-0 bg-black/10" />
+                              <span className="z-10 text-[8px] tracking-widest font-extrabold uppercase">{isStories ? 'STORY' : 'POST'}</span>
+                            </div>
+                          )}
+                          {/* Caption preview */}
+                          <p className="text-zinc-650 line-clamp-2 max-w-[240px] leading-relaxed">
+                            {item.caption || '(No caption)'}
+                          </p>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        {item.isAutomated ? (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                            Automated
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-50 text-zinc-450 border border-zinc-200">
+                            No Automation
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-4 font-bold text-zinc-800">
+                        <div className="flex items-center gap-1">
+                          <Eye className="w-3.5 h-3.5 text-zinc-400" />
+                          {item.views}
+                        </div>
+                      </td>
+                      <td className="p-4 font-bold text-zinc-800">
+                        <div className="flex items-center gap-1">
+                          <Heart className="w-3.5 h-3.5 text-zinc-400" />
+                          {item.likes}
+                        </div>
+                      </td>
+                      <td className="p-4 font-bold text-zinc-800">
+                        <div className="flex items-center gap-1">
+                          <MessageSquare className="w-3.5 h-3.5 text-zinc-400" />
+                          {item.comments}
+                        </div>
+                      </td>
+                      <td className="p-4 font-bold text-zinc-800">{clicksCount}</td>
+                      <td className="p-4 font-bold text-zinc-800">{ctr}</td>
+                      <td className="p-4 pr-5 text-right">
+                        {item.isAutomated ? (
+                          <button
+                            onClick={() => handleRemoveAutomation(item.id)}
+                            className="inline-flex items-center gap-1 bg-red-50 hover:bg-red-100 border border-red-200 text-[10px] font-bold text-red-700 px-3 py-1.5 rounded-xl shadow-sm transition"
+                          >
+                            Remove Automation
+                          </button>
+                        ) : (
+                          <Link
+                            href={`/dashboard/templates?post_id=${item.id}`}
+                            className="inline-flex items-center gap-1 btn-gradient text-[10px] font-bold text-white px-3 py-1.5 rounded-xl shadow-sm transition"
+                          >
+                            Set up Automation
+                          </Link>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
       </div>
+      
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-2xl max-w-sm w-full mx-4 flex flex-col gap-4 text-center animate-scaleIn">
+            <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto border border-red-100 shadow-sm">
+              <AlertCircle className="w-6 h-6" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <h3 className="text-base font-extrabold text-zinc-900">Remove Automation?</h3>
+              <p className="text-xs text-zinc-550 leading-relaxed">
+                Are you sure you want to remove the automation for this post? This cannot be undone and webhooks will stop responding to comments.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 mt-2">
+              <button
+                onClick={() => setDeleteConfirmId(null)}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-zinc-200 text-xs font-bold text-zinc-700 hover:bg-zinc-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteAutomation}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-xs font-bold text-white shadow-sm transition"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

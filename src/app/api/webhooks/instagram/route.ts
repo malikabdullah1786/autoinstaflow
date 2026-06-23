@@ -333,6 +333,11 @@ export async function POST(req: Request) {
               });
             }
 
+            const matchedKeyword = (matchedAut.trigger_config?.keywords || []).find((keyword: string) => {
+              const kw = keyword.toLowerCase().trim();
+              return kw && commentText.toLowerCase().includes(kw);
+            }) || 'default';
+
             await supabase.from('automation_events').insert({
               automation_id: matchedAut.id,
               workspace_id: account.workspace_id,
@@ -343,7 +348,8 @@ export async function POST(req: Request) {
                 text: commentText,
                 action: matchedAut.action_type,
                 message: finalMessage,
-                url: finalUrl
+                url: finalUrl,
+                keyword: matchedKeyword
               },
               occurred_at: new Date().toISOString()
             });
@@ -595,6 +601,11 @@ export async function POST(req: Request) {
                 });
               }
 
+              const matchedKeyword = (matchedAut.trigger_config?.keywords || []).find((keyword: string) => {
+                const kw = keyword.toLowerCase().trim();
+                return kw && messageText.toLowerCase().includes(kw);
+              }) || 'default';
+
               await supabase.from('automation_events').insert({
                 automation_id: matchedAut.id,
                 workspace_id: account.workspace_id,
@@ -605,7 +616,8 @@ export async function POST(req: Request) {
                   text: messageText,
                   action: matchedAut.action_type,
                   message: finalMessage,
-                  url: finalUrl
+                  url: finalUrl,
+                  keyword: matchedKeyword
                 },
                 occurred_at: new Date().toISOString()
               });

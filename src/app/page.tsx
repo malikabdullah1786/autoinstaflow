@@ -19,7 +19,8 @@ import {
   Video, 
   Camera, 
   Smile, 
-  Link as LinkIcon 
+  Link as LinkIcon,
+  Info
 } from 'lucide-react';
 
 export default function LandingPage() {
@@ -36,6 +37,7 @@ export default function LandingPage() {
   
   // Billing cycle state for landing page pricing toggle
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
+  const [comingSoonMessage, setComingSoonMessage] = useState<string | null>(null);
 
   // Detect Instagram OAuth redirect: ?code= lands here because redirect_uri is the root URL.
   // Forward immediately to /dashboard/connect so the callback handler can process the code.
@@ -185,13 +187,13 @@ export default function LandingPage() {
               {partnersOpen && (
                 <div className="absolute top-full left-0 mt-3 bg-white border border-zinc-200 rounded-2xl p-4 shadow-[0_15px_45px_rgba(0,0,0,0.08)] flex flex-col gap-2 min-w-[220px] z-50 backdrop-blur-md">
                   <button 
-                    onClick={() => alert("Affiliate partner portal coming soon!")}
+                    onClick={() => setComingSoonMessage("Our Affiliate Partner Portal is coming soon! Stay tuned for launch details.")}
                     className="w-full text-left px-3 py-2 rounded-lg text-xs text-zinc-550 hover:text-purple-700 hover:bg-purple-50/50 transition font-bold"
                   >
                     Affiliate Program
                   </button>
                   <button 
-                    onClick={() => alert("Agency dashboard and multi-account managers coming soon!")}
+                    onClick={() => setComingSoonMessage("The Agency Network dashboard and multi-account managers are coming soon!")}
                     className="w-full text-left px-3 py-2 rounded-lg text-xs text-zinc-550 hover:text-purple-700 hover:bg-purple-50/50 transition font-bold"
                   >
                     Agency Network
@@ -961,6 +963,28 @@ export default function LandingPage() {
         </div>
       </footer>
 
+      {/* Coming Soon Alert/Modal */}
+      {comingSoonMessage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-2xl max-w-sm w-full mx-4 flex flex-col gap-4 text-center animate-scaleIn">
+            <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center mx-auto border border-purple-100 shadow-sm">
+              <Info className="w-6 h-6" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <h3 className="text-base font-extrabold text-zinc-900">Feature Coming Soon</h3>
+              <p className="text-xs text-zinc-550 leading-relaxed">
+                {comingSoonMessage}
+              </p>
+            </div>
+            <button
+              onClick={() => setComingSoonMessage(null)}
+              className="mt-2 w-full px-4 py-2.5 rounded-xl btn-gradient text-xs font-bold text-white shadow-sm transition"
+            >
+              Acknowledge
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

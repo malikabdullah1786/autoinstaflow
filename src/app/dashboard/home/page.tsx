@@ -48,6 +48,7 @@ export default function HomeDashboard() {
   const [simEmail, setSimEmail] = useState('');
   const [simOutcome, setSimOutcome] = useState<{ success: boolean; outcome: string; details?: string } | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const activeAccount = accounts.find(a => a.id === activeAccountId);
   const accountAutomations = automations.filter(a => a.instagram_account_id === activeAccountId);
@@ -160,12 +161,17 @@ export default function HomeDashboard() {
     setIsRefreshing(false);
   };
 
-  const handleRemoveAutomation = async (postId: string) => {
+  const handleRemoveAutomation = (postId: string) => {
     const aut = automations.find(a => a.instagram_account_id === activeAccountId && a.trigger_config?.post_id === postId);
     if (aut) {
-      if (confirm('Are you sure you want to remove the automation for this post?')) {
-        await deleteAutomation(aut.id);
-      }
+      setDeleteConfirmId(aut.id);
+    }
+  };
+
+  const confirmDeleteAutomation = async () => {
+    if (deleteConfirmId) {
+      await deleteAutomation(deleteConfirmId);
+      setDeleteConfirmId(null);
     }
   };
 
@@ -205,7 +211,7 @@ export default function HomeDashboard() {
     }
   ];
 
-  const displayedPosts = realPosts.length > 0 ? realPosts : mockPosts;
+  const displayedPosts = realPosts;
 
   // Dynamic Metrics calculations based on actual db events
   const totalDMsSentToday = events.filter(
@@ -279,7 +285,11 @@ export default function HomeDashboard() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-extrabold text-zinc-900">Today's actions</span>
-                <span className="text-xs text-zinc-450">• {displayedPosts.filter(p => !p.isAutomated).length} recent posts don't have an automation yet.</span>
+                <span className="text-xs text-zinc-450">
+                  {loadingPosts 
+                    ? '• Loading recent posts...' 
+                    : `• ${displayedPosts.filter(p => !p.isAutomated).length} recent posts don't have an automation yet.`}
+                </span>
               </div>
               <div className="flex items-center gap-3">
                 <button 
@@ -296,80 +306,103 @@ export default function HomeDashboard() {
             </div>
 
             {/* Horizontal Grid of Post Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {displayedPosts.slice(0, 4).map(post => (
-                <div key={post.id} className="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm flex flex-col justify-between p-3.5 group">
-                  <div className="flex flex-col gap-3">
-                    {/* Visual post thumbnail placeholder */}
-                    {post.mediaUrl ? (
-                      <div className="aspect-square w-full rounded-xl relative shadow-inner overflow-hidden border border-zinc-200">
-                        <img 
-                          src={post.thumbnailUrl || post.mediaUrl} 
-                          alt="Instagram media" 
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                          onError={(e) => {
-                            // Fallback to gradient if image fails to load
-                            e.currentTarget.style.display = 'none';
-                            const fallback = e.currentTarget.parentElement?.querySelector('.fallback-gradient');
-                            if (fallback) fallback.classList.remove('hidden');
-                          }}
-                        />
-                        <div className="fallback-gradient hidden absolute inset-0 bg-gradient-to-tr from-pink-500 via-red-500 to-yellow-500 flex flex-col justify-between p-2.5 text-white" />
-                        <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition-all duration-300" />
-                        <div className="absolute top-2.5 right-2.5 bg-black/50 backdrop-blur-md px-1.5 py-0.5 rounded text-[9px] font-bold text-white uppercase tracking-wider">
-                          {post.type || 'POST'}
-                        </div>
-                        <div className="absolute bottom-2.5 left-2.5 z-10 flex gap-3 text-[10px] font-bold text-white">
-                          <span className="flex items-center gap-1 bg-black/45 backdrop-blur-sm px-1.5 py-0.5 rounded">
-                            <Heart className="w-3 h-3 fill-white text-white" /> {post.likes}
-                          </span>
-                          <span className="flex items-center gap-1 bg-black/45 backdrop-blur-sm px-1.5 py-0.5 rounded">
-                            <MessageSquare className="w-3 h-3 fill-white text-white" /> {post.comments}
-                          </span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className={`aspect-square w-full rounded-xl bg-gradient-to-tr ${post.bgGradient} flex flex-col justify-between p-2.5 text-white relative shadow-inner overflow-hidden`}>
-                        <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition-all duration-300" />
-                        <div className="z-10 ml-auto bg-black/40 backdrop-blur-md px-1.5 py-0.5 rounded text-[9px] font-bold uppercase">
-                          {post.type || 'POST'}
-                        </div>
-                        <div className="z-10 flex gap-3 text-[10px] font-bold">
-                          <span className="flex items-center gap-1 bg-black/40 backdrop-blur-sm px-1.5 py-0.5 rounded">
-                            <Heart className="w-3 h-3 fill-white text-white" /> {post.likes}
-                          </span>
-                          <span className="flex items-center gap-1 bg-black/40 backdrop-blur-sm px-1.5 py-0.5 rounded">
-                            <MessageSquare className="w-3 h-3 fill-white text-white" /> {post.comments}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                    {/* Caption preview */}
-                    <p className="text-[11px] text-zinc-600 line-clamp-2 leading-relaxed px-1">
-                      {post.caption || '(No caption)'}
-                    </p>
+            {loadingPosts ? (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[1, 2, 3, 4].map(idx => (
+                  <div key={idx} className="bg-white border border-zinc-200 rounded-2xl p-3.5 flex flex-col justify-between h-[300px] animate-pulse">
+                    <div className="flex flex-col gap-3">
+                      <div className="aspect-square w-full rounded-xl bg-zinc-100" />
+                      <div className="h-3 bg-zinc-100 rounded w-5/6" />
+                      <div className="h-3 bg-zinc-100 rounded w-2/3" />
+                    </div>
+                    <div className="h-8 bg-zinc-100 rounded-xl w-full mt-4" />
                   </div>
+                ))}
+              </div>
+            ) : displayedPosts.length === 0 ? (
+              <div className="p-8 text-center border border-dashed border-zinc-200 rounded-2xl bg-zinc-50/50 flex flex-col items-center justify-center gap-2">
+                <AlertCircle className="w-8 h-8 text-zinc-400" />
+                <span className="text-xs font-bold text-zinc-800">No recent posts found</span>
+                <span className="text-[11px] text-zinc-450 max-w-sm">
+                  We couldn't retrieve any posts or reels from your connected account. Once you publish content on Instagram, it will appear here.
+                </span>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {displayedPosts.slice(0, 4).map(post => (
+                  <div key={post.id} className="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm flex flex-col justify-between p-3.5 group">
+                    <div className="flex flex-col gap-3">
+                      {/* Visual post thumbnail placeholder */}
+                      {post.mediaUrl ? (
+                        <div className="aspect-square w-full rounded-xl relative shadow-inner overflow-hidden border border-zinc-200">
+                          <img 
+                            src={post.thumbnailUrl || post.mediaUrl} 
+                            alt="Instagram media" 
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                            onError={(e) => {
+                              // Fallback to gradient if image fails to load
+                              e.currentTarget.style.display = 'none';
+                              const fallback = e.currentTarget.parentElement?.querySelector('.fallback-gradient');
+                              if (fallback) fallback.classList.remove('hidden');
+                            }}
+                          />
+                          <div className="fallback-gradient hidden absolute inset-0 bg-gradient-to-tr from-pink-500 via-red-500 to-yellow-500 flex flex-col justify-between p-2.5 text-white" />
+                          <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition-all duration-300" />
+                          <div className="absolute top-2.5 right-2.5 bg-black/50 backdrop-blur-md px-1.5 py-0.5 rounded text-[9px] font-bold text-white uppercase tracking-wider">
+                            {post.type || 'POST'}
+                          </div>
+                          <div className="absolute bottom-2.5 left-2.5 z-10 flex gap-3 text-[10px] font-bold text-white">
+                            <span className="flex items-center gap-1 bg-black/45 backdrop-blur-sm px-1.5 py-0.5 rounded">
+                              <Heart className="w-3 h-3 fill-white text-white" /> {post.likes}
+                            </span>
+                            <span className="flex items-center gap-1 bg-black/45 backdrop-blur-sm px-1.5 py-0.5 rounded">
+                              <MessageSquare className="w-3 h-3 fill-white text-white" /> {post.comments}
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className={`aspect-square w-full rounded-xl bg-gradient-to-tr ${post.bgGradient || 'from-pink-500 via-red-500 to-yellow-500'} flex flex-col justify-between p-2.5 text-white relative shadow-inner overflow-hidden`}>
+                          <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition-all duration-300" />
+                          <div className="z-10 ml-auto bg-black/40 backdrop-blur-md px-1.5 py-0.5 rounded text-[9px] font-bold uppercase">
+                            {post.type || 'POST'}
+                          </div>
+                          <div className="z-10 flex gap-3 text-[10px] font-bold">
+                            <span className="flex items-center gap-1 bg-black/40 backdrop-blur-sm px-1.5 py-0.5 rounded">
+                              <Heart className="w-3 h-3 fill-white text-white" /> {post.likes}
+                            </span>
+                            <span className="flex items-center gap-1 bg-black/40 backdrop-blur-sm px-1.5 py-0.5 rounded">
+                              <MessageSquare className="w-3 h-3 fill-white text-white" /> {post.comments}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      {/* Caption preview */}
+                      <p className="text-[11px] text-zinc-600 line-clamp-2 leading-relaxed px-1">
+                        {post.caption || '(No caption)'}
+                      </p>
+                    </div>
 
-                  <div className="mt-4 pt-2.5 border-t border-zinc-100 font-sans">
-                    {post.isAutomated ? (
-                      <button 
-                        onClick={() => handleRemoveAutomation(post.id)}
-                        className="w-full py-1.5 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 transition text-center text-xs font-bold text-red-700 block shadow-sm"
-                      >
-                        Remove Automation
-                      </button>
-                    ) : (
-                      <Link 
-                        href={`/dashboard/templates?post_id=${post.id}`}
-                        className="w-full py-1.5 rounded-xl btn-gradient text-white text-center text-xs font-bold block shadow-sm"
-                      >
-                        Set up Automation
-                      </Link>
-                    )}
+                    <div className="mt-4 pt-2.5 border-t border-zinc-100 font-sans">
+                      {post.isAutomated ? (
+                        <button 
+                          onClick={() => handleRemoveAutomation(post.id)}
+                          className="w-full py-1.5 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 transition text-center text-xs font-bold text-red-700 block shadow-sm"
+                        >
+                          Remove Automation
+                        </button>
+                      ) : (
+                        <Link 
+                          href={`/dashboard/templates?post_id=${post.id}`}
+                          className="w-full py-1.5 rounded-xl btn-gradient text-white text-center text-xs font-bold block shadow-sm"
+                        >
+                          Set up Automation
+                        </Link>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           <div className="glass-panel p-8 text-center flex flex-col items-center justify-center gap-4 bg-white border border-zinc-200 rounded-2xl">
@@ -733,6 +766,37 @@ export default function HomeDashboard() {
         </div>
 
       </div>
+      
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-2xl max-w-sm w-full mx-4 flex flex-col gap-4 text-center animate-scaleIn">
+            <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto border border-red-100 shadow-sm">
+              <AlertCircle className="w-6 h-6" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <h3 className="text-base font-extrabold text-zinc-900">Remove Automation?</h3>
+              <p className="text-xs text-zinc-550 leading-relaxed">
+                Are you sure you want to remove the automation for this post? This cannot be undone and webhooks will stop responding to comments.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 mt-2">
+              <button
+                onClick={() => setDeleteConfirmId(null)}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-zinc-200 text-xs font-bold text-zinc-700 hover:bg-zinc-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteAutomation}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-xs font-bold text-white shadow-sm transition"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

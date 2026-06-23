@@ -161,33 +161,33 @@ export default function ApiReferencePage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-zinc-100 font-sans selection:bg-purple-500 selection:text-white relative overflow-hidden">
+    <div className="min-h-screen bg-white text-zinc-800 font-sans selection:bg-purple-500 selection:text-white relative overflow-hidden">
       {/* Background patterns */}
-      <div className="absolute top-0 right-1/4 w-96 h-96 bg-purple-600/10 rounded-full blur-[100px] pointer-events-none" />
-      <div className="absolute bottom-10 left-1/4 w-96 h-96 bg-blue-600/10 rounded-full blur-[100px] pointer-events-none" />
+      <div className="absolute top-0 right-1/4 w-96 h-96 bg-purple-50/50 rounded-full blur-[100px] pointer-events-none" />
+      <div className="absolute bottom-10 left-1/4 w-96 h-96 bg-blue-50/40 rounded-full blur-[100px] pointer-events-none" />
 
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-[#09090b]/80 backdrop-blur-md border-b border-zinc-800/80 px-6 py-4 flex items-center justify-between">
+      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-zinc-200 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link href="/" className="flex items-center gap-2 group">
-            <span className="font-extrabold text-lg tracking-tight text-white flex items-center gap-1">
-              Auto Insta Flow <span className="text-purple-500 font-black leading-none text-xl">+</span>
+            <span className="font-extrabold text-lg tracking-tight text-zinc-900 flex items-center gap-1">
+              Auto Insta Flow <span className="text-purple-650 font-black leading-none text-xl">+</span>
             </span>
           </Link>
-          <span className="h-4 w-px bg-zinc-800" />
-          <span className="text-xs font-semibold text-zinc-400 bg-zinc-900 px-2.5 py-1 rounded-full border border-zinc-800">
+          <span className="h-4 w-px bg-zinc-200" />
+          <span className="text-xs font-semibold text-zinc-500 bg-zinc-100 px-2.5 py-1 rounded-full border border-zinc-200">
             Developer API Reference
           </span>
         </div>
 
         <div className="flex items-center gap-4">
-          <Link href="/docs" className="text-xs font-semibold text-zinc-400 hover:text-white transition flex items-center gap-1.5">
+          <Link href="/docs" className="text-xs font-semibold text-zinc-600 hover:text-zinc-900 transition flex items-center gap-1.5">
             <Code className="w-3.5 h-3.5" /> Documentation
           </Link>
-          <Link href="/dashboard/support" className="text-xs font-semibold text-zinc-400 hover:text-white transition flex items-center gap-1.5">
+          <Link href="/dashboard/support" className="text-xs font-semibold text-zinc-600 hover:text-zinc-900 transition flex items-center gap-1.5">
             <HelpCircle className="w-3.5 h-3.5" /> Support
           </Link>
-          <Link href="/dashboard/home" className="text-xs font-bold bg-white text-zinc-950 px-4 py-2 rounded-xl hover:bg-zinc-200 transition flex items-center gap-1">
+          <Link href="/dashboard/home" className="text-xs font-bold bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-800 transition flex items-center gap-1">
             <ArrowLeft className="w-3.5 h-3.5" /> Dashboard
           </Link>
         </div>
@@ -198,23 +198,23 @@ export default function ApiReferencePage() {
         {/* Navigation Sidebar */}
         <aside className="w-64 shrink-0 hidden md:block sticky top-28 h-[calc(100vh-140px)] overflow-y-auto">
           <div className="flex flex-col gap-6">
-            <div className="px-2 text-xs font-bold text-zinc-400 uppercase tracking-wider">
+            <div className="px-2 text-xs font-bold text-zinc-500 uppercase tracking-wider">
               API References
             </div>
-            <nav className="flex flex-col gap-1 border-l border-zinc-800/80 pl-3">
+            <nav className="flex flex-col gap-1 border-l border-zinc-200 pl-3">
               {endpoints.map((item) => (
                 <button
                   key={item.id}
                   onClick={() => handleScrollTo(item.id)}
-                  className={`text-left text-xs py-1.5 block hover:text-white transition-colors duration-150 relative truncate ${
+                  className={`text-left text-xs py-1.5 block hover:text-zinc-900 transition-colors duration-150 relative truncate ${
                     activeSection === item.id 
-                      ? 'text-purple-400 font-semibold' 
-                      : 'text-zinc-450'
+                      ? 'text-purple-650 font-extrabold' 
+                      : 'text-zinc-500'
                   }`}
                 >
                   {item.name}
                   {activeSection === item.id && (
-                    <div className="absolute left-[-15px] top-1/2 -translate-y-1/2 w-1 h-3 bg-purple-500 rounded-full" />
+                    <div className="absolute left-[-15px] top-1/2 -translate-y-1/2 w-1 h-3 bg-purple-600 rounded-full" />
                   )}
                 </button>
               ))}
@@ -224,23 +224,23 @@ export default function ApiReferencePage() {
 
         {/* Reference Content */}
         <main className="flex-1 max-w-4xl space-y-16">
-          <div className="border-b border-zinc-800/50 pb-8">
-            <h1 className="text-4xl font-extrabold text-white tracking-tight leading-none mb-3">
+          <div className="border-b border-zinc-200 pb-8">
+            <h1 className="text-4xl font-extrabold text-zinc-900 tracking-tight leading-none mb-3">
               Developer APIs
             </h1>
-            <p className="text-zinc-400 text-sm leading-relaxed max-w-2xl">
+            <p className="text-zinc-500 text-sm leading-relaxed max-w-2xl">
               Integrate with the Auto Insta Flow automation engine, fetch public creator insights, scan reels and comments, and handle webhook alerts.
             </p>
           </div>
 
           {/* Section: Authentication */}
           <section id="auth" className="scroll-mt-24">
-            <h2 className="text-2xl font-bold text-white mb-4">Authentication</h2>
-            <p className="text-zinc-450 text-xs leading-relaxed mb-4">
+            <h2 className="text-2xl font-bold text-zinc-900 mb-4">Authentication</h2>
+            <p className="text-zinc-650 text-xs leading-relaxed mb-4">
               All backend endpoints check authentication cookies verified via Google and Supabase sessions. For server-to-server calls or webhook events, validation relies on signing verification (such as Meta's Webhook Signature validation header).
             </p>
-            <div className="p-4 bg-zinc-950 border border-zinc-800 rounded-xl">
-              <span className="text-xs font-bold text-zinc-300 block mb-1">Authorization Headers</span>
+            <div className="p-4 bg-zinc-50 border border-zinc-200 rounded-xl">
+              <span className="text-xs font-bold text-zinc-800 block mb-1">Authorization Headers</span>
               <p className="text-xs text-zinc-500">
                 Incoming webhooks require <code>X-Hub-Signature-256</code> computed via your Instagram App Secret.
               </p>
@@ -250,18 +250,18 @@ export default function ApiReferencePage() {
           {/* Map endpoints */}
           {endpoints.filter(e => e.method).map((ep) => (
             <section key={ep.id} id={ep.id} className="scroll-mt-24 space-y-6">
-              <div className="flex flex-col gap-2 border-t border-zinc-800/50 pt-8">
+              <div className="flex flex-col gap-2 border-t border-zinc-200 pt-8">
                 <div className="flex items-center gap-3">
                   <span className={`text-[10px] font-bold px-2 py-1 rounded-md ${
                     ep.method === 'GET' 
-                      ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' 
-                      : 'bg-green-500/10 text-green-400 border border-green-500/20'
+                      ? 'bg-blue-50 text-blue-700 border border-blue-105' 
+                      : 'bg-green-50 text-green-700 border border-green-105'
                   }`}>
                     {ep.method}
                   </span>
-                  <h2 className="text-xl font-bold text-white tracking-tight">{ep.name}</h2>
+                  <h2 className="text-xl font-bold text-zinc-900 tracking-tight">{ep.name}</h2>
                 </div>
-                <p className="text-xs text-zinc-450">{ep.description}</p>
+                <p className="text-xs text-zinc-500">{ep.description}</p>
               </div>
 
               {/* Grid: Code Snippet & Body */}
@@ -269,32 +269,32 @@ export default function ApiReferencePage() {
                 {/* Left: Params and Descriptions */}
                 <div className="space-y-4">
                   <div>
-                    <span className="text-xs font-bold text-zinc-300 block mb-2">Request Parameters</span>
-                    <div className="divide-y divide-zinc-800 bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden text-xs">
+                    <span className="text-xs font-bold text-zinc-800 block mb-2">Request Parameters</span>
+                    <div className="divide-y divide-zinc-200 bg-zinc-50 border border-zinc-200 rounded-xl overflow-hidden text-xs">
                       {ep.params?.map((p) => (
-                        <div key={p.name} className="p-3 flex flex-col gap-1 bg-zinc-950/45">
+                        <div key={p.name} className="p-3 flex flex-col gap-1 bg-white">
                           <div className="flex items-center justify-between">
-                            <span className="font-mono text-purple-400 font-semibold">{p.name}</span>
-                            <span className="text-[10px] text-zinc-500">
-                              {p.type} • {p.required ? <strong className="text-red-400">required</strong> : 'optional'}
+                            <span className="font-mono text-purple-650 font-bold">{p.name}</span>
+                            <span className="text-[10px] text-zinc-400">
+                              {p.type} • {p.required ? <strong className="text-red-500">required</strong> : 'optional'}
                             </span>
                           </div>
-                          <p className="text-[11px] text-zinc-450 mt-0.5">{p.desc}</p>
+                          <p className="text-[11px] text-zinc-500 mt-0.5">{p.desc}</p>
                         </div>
                       ))}
                     </div>
                   </div>
 
                   <div>
-                    <span className="text-xs font-bold text-zinc-300 block mb-2">Response Payload (200 OK)</span>
+                    <span className="text-xs font-bold text-zinc-800 block mb-2">Response Payload (200 OK)</span>
                     <div className="relative">
                       <button 
                         onClick={() => copyToClipboard(ep.response || '', `${ep.id}-res`)}
-                        className="absolute right-3 top-3 text-zinc-500 hover:text-white transition"
+                        className="absolute right-3 top-3 text-zinc-450 hover:text-white transition"
                       >
                         {copiedText === `${ep.id}-res` ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
                       </button>
-                      <pre className="bg-[#0e0e11] border border-zinc-800 text-zinc-350 p-4 rounded-xl text-[10px] overflow-x-auto font-mono max-h-80 select-all">
+                      <pre className="bg-[#0e0e11] border border-zinc-800 text-zinc-300 p-4 rounded-xl text-[10px] overflow-x-auto font-mono max-h-80 select-all">
                         {ep.response}
                       </pre>
                     </div>
@@ -303,20 +303,20 @@ export default function ApiReferencePage() {
 
                 {/* Right: Code Console Tabs */}
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
-                    <span className="text-xs font-bold text-zinc-350">Request Example</span>
-                    <div className="flex gap-1.5">
+                  <div className="flex items-center justify-between border-b border-zinc-200 pb-2">
+                    <span className="text-xs font-bold text-zinc-800">Request Example</span>
+                    <div className="flex gap-1.5 bg-zinc-100 p-1 rounded-lg">
                       {(['curl', 'js', 'python'] as const).map((tab) => (
                         <button
                           key={tab}
                           onClick={() => setActiveTab(tab)}
                           className={`text-[10px] font-bold px-2.5 py-1 rounded-md transition ${
                             activeTab === tab 
-                              ? 'bg-zinc-800 text-white' 
-                              : 'text-zinc-500 hover:text-zinc-300'
+                              ? 'bg-zinc-900 text-white' 
+                              : 'text-zinc-500 hover:text-zinc-800'
                           }`}
                         >
-                          {tab === 'curl' ? 'cURL' : tab === 'js' ? 'JavaScript' : 'Python'}
+                          {tab === 'curl' ? 'cURL' : tab === 'js' ? 'JS' : 'Python'}
                         </button>
                       ))}
                     </div>
@@ -339,18 +339,18 @@ export default function ApiReferencePage() {
           ))}
 
           {/* Webhook details */}
-          <section id="webhooks" className="scroll-mt-24 border-t border-zinc-800/50 pt-8 space-y-4">
-            <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-              <Globe className="w-5 h-5 text-purple-400" /> Webhook Setup & Integration
+          <section id="webhooks" className="scroll-mt-24 border-t border-zinc-200 pt-8 space-y-4">
+            <h2 className="text-2xl font-bold text-zinc-900 flex items-center gap-2">
+              <Globe className="w-5 h-5 text-purple-600" /> Webhook Setup & Integration
             </h2>
-            <p className="text-zinc-450 text-xs leading-relaxed">
+            <p className="text-zinc-500 text-xs leading-relaxed">
               Auto Insta Flow relies on Real-Time Graph API Webhooks to process events on Instagram instantly. Setup requires completing the challenge handshake, and validating the signature on incoming payloads.
             </p>
 
             <div className="space-y-4">
-              <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 space-y-3">
-                <span className="text-xs font-bold text-zinc-200 block border-b border-zinc-800 pb-1.5">1. Challenge Handshake (GET /api/webhooks/instagram)</span>
-                <p className="text-xs text-zinc-400 leading-relaxed">
+              <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-4 space-y-3">
+                <span className="text-xs font-bold text-zinc-850 block border-b border-zinc-200 pb-1.5">1. Challenge Handshake (GET /api/webhooks/instagram)</span>
+                <p className="text-xs text-zinc-650 leading-relaxed">
                   Meta calls your webhook endpoint with verification query params. You must compare the token and return the challenge query parameter as plain text.
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-[10px] text-zinc-500 font-mono">
@@ -360,12 +360,12 @@ export default function ApiReferencePage() {
                 </div>
               </div>
 
-              <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 space-y-3">
-                <span className="text-xs font-bold text-zinc-200 block border-b border-zinc-800 pb-1.5">2. Event Receiver (POST /api/webhooks/instagram)</span>
-                <p className="text-xs text-zinc-400 leading-relaxed">
+              <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-4 space-y-3">
+                <span className="text-xs font-bold text-zinc-850 block border-b border-zinc-200 pb-1.5">2. Event Receiver (POST /api/webhooks/instagram)</span>
+                <p className="text-xs text-zinc-650 leading-relaxed">
                   Meta sends JSON events (comments, stories, DMs) in real time. Validate payloads using the SHA256 signature in the <code>x-hub-signature-256</code> header.
                 </p>
-                <pre className="bg-[#0e0e11] border border-zinc-800 text-zinc-450 p-4 rounded-xl text-[9px] overflow-x-auto font-mono">
+                <pre className="bg-[#0e0e11] border border-zinc-800 text-zinc-350 p-4 rounded-xl text-[9px] overflow-x-auto font-mono">
 {`// Header: x-hub-signature-256 = sha256=abcdef12345...
 {
   "entry": [
@@ -400,7 +400,7 @@ export default function ApiReferencePage() {
       </div>
 
       {/* Footer */}
-      <footer className="border-t border-zinc-900 bg-zinc-950 py-8 px-6 text-center text-xs text-zinc-500">
+      <footer className="border-t border-zinc-200 bg-zinc-50 py-8 px-6 text-center text-xs text-zinc-500">
         <p>© {new Date().getFullYear()} Auto Insta Flow. All rights reserved. Meta & Instagram are registered trademarks of Meta Platforms Inc.</p>
       </footer>
     </div>

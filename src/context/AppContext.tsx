@@ -871,6 +871,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const igUserId = `ig_user_${instagramUsername.toLowerCase()}`;
+    const matchedKeyword = (matchedAut.trigger_config?.keywords || []).find(keyword => {
+      const kw = keyword.toLowerCase().trim();
+      return kw && commentText.toLowerCase().includes(kw);
+    }) || 'default';
 
     // Query contact from DB or state early to bypass gates when they already complied
     let dbContact: any = null;
@@ -1146,6 +1150,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             action: matchedAut.action_type,
             message: finalMessage,
             url: finalUrl,
+            keyword: matchedKeyword
           },
           occurred_at: new Date().toISOString()
         }).select().single();
@@ -1228,6 +1233,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           action: matchedAut.action_type,
           message: finalMessage,
           url: finalUrl,
+          keyword: matchedKeyword
         },
         occurred_at: new Date().toISOString(),
       };

@@ -796,6 +796,7 @@ describe('Instagram Webhook Handler', () => {
           update: vi.fn().mockImplementation(() => mockQB),
           then: vi.fn().mockImplementation((onfulfilled) => {
             if (table === 'automations') return Promise.resolve({ data: [mockDMAutomation], error: null }).then(onfulfilled);
+            if (table === 'instagram_accounts') return Promise.resolve({ data: [mockAccount], error: null }).then(onfulfilled);
             return Promise.resolve({ data: [], error: null }).then(onfulfilled);
           })
         };
