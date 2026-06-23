@@ -803,8 +803,8 @@ export async function POST(req: Request) {
                   }
                 ]);
               } else {
-                // Not following yet, repeat prompt!
-                const promptMessage = `Nearly there! The link is especially for my followers ✨\n\nRight after you follow me, I'll send you the link so you can dive straight in! 🎉`;
+                // Not following yet, send a robust reminder indicating they must follow first
+                const promptMessage = `I checked, but it looks like you aren't following @${account.username || 'us'} yet! 🔍\n\nPlease make sure to follow first, then tap the 'Following' button again so I can send you the link! 🚀`;
                 
                 await sendInstagramDMWithQuickReplies(
                   instagramAccountId,
