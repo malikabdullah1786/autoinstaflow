@@ -6,6 +6,10 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// Simple in-memory cache: accountId -> { posts: any[], expiry: number }
+const mediaCache = new Map<string, { posts: any[], expiry: number }>();
+const CACHE_TTL_MS = 60 * 1000; // 1 minute cache TTL
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -28,6 +32,68 @@ export async function GET(req: Request) {
 
     if (account.token_status !== 'active') {
       return NextResponse.json({ error: 'Access token is invalid or expired.' }, { status: 400 });
+    }
+
+    // A. Bypass network calls for Sandbox/Mock accounts instantly
+    if (
+      account.access_token.startsWith('access_tok_') ||
+      account.access_token.startsWith('mock_') ||
+      account.instagram_user_id.startsWith('ig_usr_')
+    ) {
+      const mockPosts = [
+        {
+          id: "mock_post_1",
+          caption: "🚀 Our biggest product update is finally here! Comment 'UPDATE' to get early access instantly! 🤫👇",
+          type: "post",
+          mediaUrl: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800",
+          permalink: "https://instagram.com",
+          thumbnailUrl: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400",
+          thumbnail: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400",
+          commentsCount: 142,
+          likeCount: 1250,
+          publishedAt: new Date(Date.now() - 2 * 3600000).toISOString(),
+          commentsList: []
+        },
+        {
+          id: "mock_post_2",
+          caption: "Want to know how we scaled to 10k users in 30 days? Comment 'SCALE' and I will send you the exact playbook! 📈🔥",
+          type: "reel",
+          mediaUrl: "https://images.unsplash.com/photo-1551434678-e076c223a692?w=800",
+          permalink: "https://instagram.com",
+          thumbnailUrl: "https://images.unsplash.com/photo-1551434678-e076c223a692?w=400",
+          thumbnail: "https://images.unsplash.com/photo-1551434678-e076c223a692?w=400",
+          commentsCount: 89,
+          likeCount: 940,
+          publishedAt: new Date(Date.now() - 24 * 3600000).toISOString(),
+          commentsList: []
+        },
+        {
+          id: "mock_post_3",
+          caption: "Free Masterclass: How to automate your Instagram DMs like a pro. Comment 'AUTOMATE' for your invite! 🎓✨",
+          type: "post",
+          mediaUrl: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800",
+          permalink: "https://instagram.com",
+          thumbnailUrl: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400",
+          thumbnail: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400",
+          commentsCount: 67,
+          likeCount: 520,
+          publishedAt: new Date(Date.now() - 48 * 3600000).toISOString(),
+          commentsList: []
+        }
+      ];
+      return NextResponse.json({
+        success: true,
+        posts: mockPosts
+      });
+    }
+
+    // B. Check in-memory cache for Real accounts
+    const cached = mediaCache.get(accountId);
+    if (cached && cached.expiry > Date.now()) {
+      return NextResponse.json({
+        success: true,
+        posts: cached.posts
+      });
     }
 
     // 2. Fetch media & stories from Instagram Graph API on graph.instagram.com
@@ -104,9 +170,15 @@ export async function GET(req: Request) {
       };
     });
 
+    const mappedPosts = [...posts, ...stories];
+    mediaCache.set(accountId, {
+      posts: mappedPosts,
+      expiry: Date.now() + CACHE_TTL_MS
+    });
+
     return NextResponse.json({
       success: true,
-      posts: [...posts, ...stories]
+      posts: mappedPosts
     });
 
   } catch (e: any) {

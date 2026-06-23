@@ -66,6 +66,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     accounts, 
     activeAccountId, 
     setActiveAccountId, 
+    removeInstagramAccount,
     signOut, 
     isBannerDismissed,
     dismissUpgradeBanner,
@@ -225,31 +226,51 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 Select Instagram Account
               </div>
               {accounts.map(acc => (
-                <button
+                <div
                   key={acc.id}
                   onClick={() => {
                     setActiveAccountId(acc.id);
                     setDropdownOpen(false);
                   }}
-                  className={`w-full text-left px-2 py-2 rounded-md text-xs transition flex items-center gap-2 ${acc.id === activeAccountId ? 'bg-purple-600 text-white font-bold' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                  className={`w-full group px-2 py-2 rounded-md text-xs transition flex items-center justify-between gap-2 cursor-pointer ${acc.id === activeAccountId ? 'bg-purple-600 text-white font-bold' : 'text-zinc-600 hover:bg-zinc-50'}`}
                 >
-                  {acc.profile_picture_url ? (
-                    <img src={acc.profile_picture_url} alt={acc.username} className="w-5 h-5 rounded-full object-cover border border-zinc-200 shrink-0" />
-                  ) : (
-                    <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 shrink-0" />
-                  )}
-                  <div className="flex flex-col gap-0 overflow-hidden">
-                    <span className="truncate">@{acc.username}</span>
-                    {acc.followers_count != null && (
-                      <span className={`text-[8px] font-semibold ${acc.id === activeAccountId ? 'text-purple-200' : 'text-zinc-400'}`}>
-                        {acc.followers_count.toLocaleString()} followers
-                      </span>
+                  <div className="flex items-center gap-2 overflow-hidden flex-1">
+                    {acc.profile_picture_url ? (
+                      <img src={acc.profile_picture_url} alt={acc.username} className="w-5 h-5 rounded-full object-cover border border-zinc-200 shrink-0" />
+                    ) : (
+                      <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 shrink-0" />
                     )}
+                    <div className="flex flex-col gap-0 overflow-hidden text-left">
+                      <span className="truncate">@{acc.username}</span>
+                      {acc.followers_count != null && (
+                        <span className={`text-[8px] font-semibold ${acc.id === activeAccountId ? 'text-purple-200' : 'text-zinc-400'}`}>
+                          {acc.followers_count.toLocaleString()} followers
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  {acc.token_status !== 'active' && (
-                    <span className="ml-auto bg-red-100 text-red-600 px-1 py-0.5 rounded text-[8px] font-bold shrink-0">Fix</span>
-                  )}
-                </button>
+                  
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {acc.token_status !== 'active' && (
+                      <span className="bg-red-100 text-red-650 px-1 py-0.5 rounded text-[8px] font-bold shrink-0">Fix</span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm(`Are you sure you want to disconnect @${acc.username}? This will pause all associated automations.`)) {
+                          removeInstagramAccount(acc.id);
+                        }
+                      }}
+                      className={`p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-red-50 text-red-500 transition shrink-0 ${acc.id === activeAccountId ? 'text-purple-100 hover:bg-purple-750 hover:text-white' : ''}`}
+                      title="Disconnect Account"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
               ))}
 
               <hr className="border-zinc-100 my-1" />
