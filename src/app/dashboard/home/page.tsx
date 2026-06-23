@@ -446,10 +446,9 @@ export default function HomeDashboard() {
               <span className="text-sm font-bold text-zinc-800">Instagram Account Not Linked</span>
               <span className="text-xs text-zinc-450">Link your account to import your posts and start automating.</span>
             </div>
-            <button 
+             <button 
               onClick={() => {
-                const trigger = document.querySelector('[onClick*="setShowLinkModal"]');
-                if (trigger) (trigger as HTMLElement).click();
+                window.dispatchEvent(new CustomEvent('open-connect-modal'));
               }}
               className="px-5 py-2.5 btn-gradient text-white rounded-xl text-xs font-bold hover:opacity-95 transition shadow-md"
             >

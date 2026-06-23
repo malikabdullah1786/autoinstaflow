@@ -89,6 +89,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setSidebarOpen(false);
   }, [pathname]);
 
+  // Listen for global event to open connection modal
+  useEffect(() => {
+    const handleOpen = () => setShowLinkModal(true);
+    window.addEventListener('open-connect-modal', handleOpen);
+    return () => window.removeEventListener('open-connect-modal', handleOpen);
+  }, []);
+
   // Redirect unauthenticated users to /login
   useEffect(() => {
     if (loading) return;
