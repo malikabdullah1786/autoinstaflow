@@ -40,7 +40,7 @@ export async function GET(req: Request) {
       console.log('Webhook verification successful.');
       return new Response(challenge, { status: 200 });
     }
-    
+
     console.warn('Webhook verification failed: token mismatch.');
     return new Response('Forbidden', { status: 403 });
   } catch (e: any) {
@@ -233,7 +233,7 @@ export async function POST(req: Request) {
             } else if (matchedAut.action_type === 'follow_gate') {
               const isFollowing = await checkInstagramFollowStatus(senderIgId, account.access_token);
               if (!isFollowing) {
-                finalMessage = `Nearly there! The link is especially for my followers ✨\n\nRight after you follow me, I'll send you the link so you can dive straight in! 🎉`;
+                finalMessage = `Nearly there! The link is especially for my followers ✨\n\nRight after you follow me, reply with 'following' (or tap the button below) and I'll send you the link! 🎉`;
                 finalUrl = '';
                 isFollowPrompt = true;
                 quickReplies = [{ title: 'Following', payload: `check_follow_${matchedAut.id}` }];
@@ -565,7 +565,7 @@ export async function POST(req: Request) {
               } else if (matchedAut.action_type === 'follow_gate') {
                 const isFollowing = isUserFollowBusiness || await checkInstagramFollowStatus(senderId, account.access_token);
                 if (!isFollowing) {
-                  finalMessage = `Nearly there! The link is especially for my followers ✨\n\nRight after you follow me, I'll send you the link so you can dive straight in! 🎉`;
+                  finalMessage = `Nearly there! The link is especially for my followers ✨\n\nRight after you follow me, reply with 'Following' (or tap the button below) and I'll send you the link! 🎉`;
                   finalUrl = '';
                   isFollowPrompt = true;
                   quickReplies = [{ title: 'Following', payload: `check_follow_${matchedAut.id}` }];
@@ -804,8 +804,8 @@ export async function POST(req: Request) {
                 ]);
               } else {
                 // Not following yet, send a robust reminder indicating they must follow first
-                const promptMessage = `I checked, but it looks like you aren't following @${account.username || 'us'} yet! 🔍\n\nPlease make sure to follow first, then tap the 'Following' button again so I can send you the link! 🚀`;
-                
+                const promptMessage = `I checked, but it looks like you aren't following @${account.username || 'us'} yet! 🔍\n\nPlease make sure to follow first, then reply with 'Following' (or tap the button below) so I can send you the link! 🚀`;
+
                 await sendInstagramDMWithQuickReplies(
                   instagramAccountId,
                   senderId,
@@ -898,7 +898,7 @@ export async function POST(req: Request) {
               } else {
                 // Invalid email sent, repeat prompt!
                 const promptMessage = `Please provide your email address to receive your link:`;
-                
+
                 await sendInstagramDM(instagramAccountId, senderId, promptMessage, account.access_token);
 
                 // Log DM sent for email prompt retry
@@ -963,7 +963,7 @@ async function checkInstagramFollowStatus(senderId: string, accessToken: string)
           console.log(`[Follow Gate] User consent required to check follow status for sender ID ${senderId}. This is standard Meta API behavior before direct messaging is established.`);
           return false;
         }
-      } catch (e) {}
+      } catch (e) { }
       console.error('Failed to check follow status:', errText);
       return false;
     }
@@ -1032,12 +1032,14 @@ async function sendInstagramLinkButton(
   buttonTitle: string,
   accessToken: string
 ) {
-  // 1. Send the main text message first to preserve formatting, newlines, and length
-  await sendInstagramDM(instagramAccountId, recipientId, title, accessToken);
+  // To support Instagram Web (desktop/laptop browsers) which do not render generic card templates,
+  // we append the link directly to the end of the text message itself as a clickable fallback.
+  const fullMessageText = `${title}\n\n👉 ${buttonTitle}: ${buttonUrl}`.trim();
+  await sendInstagramDM(instagramAccountId, recipientId, fullMessageText, accessToken);
 
-  // 2. Send the button card with a clean, short title
+  // Send the button card with a clean, short title
   const cleanCardTitle = "Tap below to open:";
-  
+
   const res = await fetch(`https://graph.instagram.com/v20.0/${instagramAccountId}/messages`, {
     method: 'POST',
     headers: {
@@ -1069,12 +1071,10 @@ async function sendInstagramLinkButton(
     })
   });
 
-  if (!res.ok) {
-    console.error('Failed to send Link Button template:', await res.text());
-    // Fallback if template fails (e.g. Meta API restriction)
-    return sendInstagramDM(instagramAccountId, recipientId, `${buttonTitle}: ${buttonUrl}`, accessToken);
-  }
-  return res;
+if (!res.ok) {
+  console.error('Failed to send Link Button template:', await res.text());
+}
+return res;
 }
 
 async function sendInstagramLinkButtons(
@@ -1088,15 +1088,19 @@ async function sendInstagramLinkButtons(
     return sendInstagramDM(instagramAccountId, recipientId, title, accessToken);
   }
 
-  // 1. Send the main text message first to preserve formatting, newlines, and length
-  await sendInstagramDM(instagramAccountId, recipientId, title, accessToken);
+  // To support Instagram Web (desktop/laptop browsers) which do not render generic card templates,
+  // we append the links directly to the end of the text message itself as a clickable fallback.
+  const linksText = links.map(l => `👉 ${l.label || 'Link'}: ${l.url}`).join('\n');
+  const fullMessageText = `${title}\n\n${linksText}`.trim();
 
-  // 2. Build elements for the generic template
-  // Each element can hold at most 3 buttons.
+  // Send the text message (containing the clickable link fallbacks)
+  await sendInstagramDM(instagramAccountId, recipientId, fullMessageText, accessToken);
+
+  // Send the generic template for mobile users who get the premium card experience
   const elements = [];
   const chunkSize = 3;
   const cleanCardTitle = "Tap below to open:";
-  
+
   for (let i = 0; i < links.length; i += chunkSize) {
     const chunk = links.slice(i, i + chunkSize);
     elements.push({
@@ -1109,33 +1113,30 @@ async function sendInstagramLinkButtons(
     });
   }
 
-  const res = await fetch(`https://graph.instagram.com/v20.0/${instagramAccountId}/messages`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`
-    },
-    body: JSON.stringify({
-      recipient: { id: recipientId },
-      message: {
-        attachment: {
-          type: 'template',
-          payload: {
-            template_type: 'generic',
-            elements: elements
+  try {
+    const res = await fetch(`https://graph.instagram.com/v20.0/${instagramAccountId}/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      },
+      body: JSON.stringify({
+        recipient: { id: recipientId },
+        message: {
+          attachment: {
+            type: 'template',
+            payload: {
+              template_type: 'generic',
+              elements: elements
+            }
           }
         }
-      }
-    })
-  });
-
-  if (!res.ok) {
-    console.error('Failed to send DM with multiple link buttons:', await res.text());
-    // Fallback if template fails
-    const textLinks = links.map(l => `${l.label || 'Link'}: ${l.url}`).join('\n');
-    return sendInstagramDM(instagramAccountId, recipientId, textLinks, accessToken);
+      })
+    });
+    return res;
+  } catch (err) {
+    console.error('Error sending generic template:', err);
   }
-  return res;
 }
 
 async function checkGlobalQuotaExceeded(instagramUserId: string): Promise<boolean> {
