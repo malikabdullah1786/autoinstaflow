@@ -1,24 +1,18 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { useApp } from '@/context/AppContext';
 import { 
-  BarChart3, 
-  Map, 
   TrendingUp, 
   MousePointer, 
   MessageSquare, 
-  Lock, 
   Sparkles,
   ArrowUpRight,
-  HelpCircle,
-  Globe,
   Mail,
-  UserCheck,
-  CheckCircle2,
-  AlertCircle
+  UserCheck
 } from 'lucide-react';
 import { AutomationEvent } from '@/lib/db';
+
 
 // Component for the SVG Line Chart
 function SVGChart({ data }: { data: { date: string; sent: number; clicks: number }[] }) {
@@ -183,87 +177,7 @@ function SVGChart({ data }: { data: { date: string; sent: number; clicks: number
 }
 
 export default function AnalyticsPage() {
-  const { workspace, automations, events, upgradePlan } = useApp();
-  const [activeTab, setActiveTab] = useState<'overview' | 'audience'>('overview');
-  
-  const isFreePlan = workspace?.plan === 'free';
-
-  // Helper to generate dynamic mock events spanning the last 7 days
-  const mockEvents = useMemo(() => {
-    const list: AutomationEvent[] = [];
-    const keywords = ['GUIDE', 'PROMO', 'JOIN', 'INFO'];
-    const actions = ['send_dm', 'email_gate', 'follow_gate', 'send_dm'];
-    
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
-      const dateStr = date.toISOString().split('T')[0];
-      
-      // Seed metrics with daily curves
-      const numSent = 15 + Math.floor(Math.sin((6 - i) / 1.5) * 8) + Math.floor(Math.random() * 5);
-      const numClicks = Math.floor(numSent * (0.28 + Math.random() * 0.12));
-      
-      for (let s = 0; s < numSent; s++) {
-        const kwIdx = Math.floor(Math.random() * keywords.length);
-        const kw = keywords[kwIdx];
-        const act = actions[kwIdx];
-        
-        list.push({
-          id: `mock_sent_${i}_${s}`,
-          automation_id: automations[kwIdx % automations.length]?.id || `mock_aut_${kwIdx}`,
-          workspace_id: 'mock_ws',
-          event_type: 'dm_sent',
-          instagram_user_id: `mock_user_${s}`,
-          instagram_username: `user_${i}_${s}`,
-          metadata: { text: `Simulated comment with ${kw}`, keyword: kw, action: act },
-          occurred_at: new Date(date.getTime() + s * 12 * 60 * 1000).toISOString()
-        });
-      }
-
-      for (let c = 0; c < numClicks; c++) {
-        list.push({
-          id: `mock_click_${i}_${c}`,
-          automation_id: automations[Math.floor(Math.random() * automations.length)]?.id || `mock_aut_${Math.floor(Math.random() * 4)}`,
-          workspace_id: 'mock_ws',
-          event_type: 'link_clicked',
-          instagram_user_id: `mock_user_${c}`,
-          instagram_username: `user_${i}_${c}`,
-          metadata: { type: 'link_click' },
-          occurred_at: new Date(date.getTime() + c * 15 * 60 * 1000).toISOString()
-        });
-      }
-
-      // Add mock email collection events
-      const numEmails = Math.floor(numSent * 0.32);
-      for (let e = 0; e < numEmails; e++) {
-        list.push({
-          id: `mock_email_${i}_${e}`,
-          automation_id: automations.find(a => a.action_type === 'email_gate')?.id || 'mock_aut_1',
-          workspace_id: 'mock_ws',
-          event_type: 'email_collected',
-          instagram_user_id: `mock_user_email_${e}`,
-          instagram_username: `user_email_${i}_${e}`,
-          metadata: { text: `email${e}@example.com`, email: `email${e}@example.com` },
-          occurred_at: new Date(date.getTime() + e * 18 * 60 * 1000).toISOString()
-        });
-      }
-
-      // Add mock follow verified events
-      const numFollows = Math.floor(numSent * 0.41);
-      for (let f = 0; f < numFollows; f++) {
-        list.push({
-          id: `mock_follow_${i}_${f}`,
-          automation_id: automations.find(a => a.action_type === 'follow_gate')?.id || 'mock_aut_2',
-          workspace_id: 'mock_ws',
-          event_type: 'follow_verified',
-          instagram_user_id: `mock_user_follow_${f}`,
-          instagram_username: `user_follow_${i}_${f}`,
-          metadata: { text: 'followed' },
-          occurred_at: new Date(date.getTime() + f * 16 * 60 * 1000).toISOString()
-        });
-      }
-    }
-    return list;
-  }, [automations]);
+  const { automations, events } = useApp();
 
   const activeEvents = events;
 
@@ -352,15 +266,6 @@ export default function AnalyticsPage() {
     });
   }, [automations, activeEvents]);
 
-  // Audience Mock Stats
-  const audienceGeoData = [
-    { country: 'United States', visitors: 1420, conversion: '34.2%', share: 39 },
-    { country: 'United Kingdom', visitors: 850, conversion: '28.9%', share: 23 },
-    { country: 'Brazil', visitors: 620, conversion: '41.5%', share: 17 },
-    { country: 'Germany', visitors: 480, conversion: '22.1%', share: 13 },
-    { country: 'India', visitors: 390, conversion: '36.8%', share: 8 }
-  ];
-
   return (
     <div className="flex flex-col gap-6 animate-fadeIn">
       {/* Header with Title */}
@@ -371,303 +276,196 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-zinc-200">
-        <button
-          onClick={() => setActiveTab('overview')}
-          className={`px-4 py-2.5 text-xs font-bold transition-all relative ${
-            activeTab === 'overview'
-              ? 'text-purple-600 border-b-2 border-purple-600 font-extrabold'
-              : 'text-zinc-500 hover:text-zinc-800'
-          }`}
-        >
-          Overview Statistics
-        </button>
-        <button
-          onClick={() => setActiveTab('audience')}
-          className={`px-4 py-2.5 text-xs font-bold transition-all relative ${
-            activeTab === 'audience'
-              ? 'text-purple-600 border-b-2 border-purple-600 font-extrabold'
-              : 'text-zinc-500 hover:text-zinc-800'
-          }`}
-        >
-          Audience Insights
-        </button>
-      </div>
-
-      {activeTab === 'overview' ? (
-        <div className="flex flex-col gap-6">
-          {/* Main metrics summary */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="glass-panel p-5 flex items-center justify-between">
-              <div className="flex flex-col gap-1">
-                <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Total DM Deliveries</span>
-                <span className="text-3xl font-extrabold text-zinc-900">{totalSent.toLocaleString()}</span>
-                <span className="text-[10px] text-green-650 flex items-center gap-0.5 mt-1 font-bold">
-                  <ArrowUpRight className="w-3.5 h-3.5" /> +12.4% this week
-                </span>
-              </div>
-              <MessageSquare className="w-10 h-10 text-purple-600/20" />
+      <div className="flex flex-col gap-6">
+        {/* Main metrics summary */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="glass-panel p-5 flex items-center justify-between">
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Total DM Deliveries</span>
+              <span className="text-3xl font-extrabold text-zinc-900">{totalSent.toLocaleString()}</span>
+              <span className="text-[10px] text-green-650 flex items-center gap-0.5 mt-1 font-bold">
+                <ArrowUpRight className="w-3.5 h-3.5" /> +12.4% this week
+              </span>
             </div>
-
-            <div className="glass-panel p-5 flex items-center justify-between">
-              <div className="flex flex-col gap-1">
-                <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Link Click-Throughs</span>
-                <span className="text-3xl font-extrabold text-pink-600">{totalClicks.toLocaleString()}</span>
-                <span className="text-[10px] text-green-650 flex items-center gap-0.5 mt-1 font-bold">
-                  <ArrowUpRight className="w-3.5 h-3.5" /> +8.2% this week
-                </span>
-              </div>
-              <MousePointer className="w-10 h-10 text-pink-600/20" />
-            </div>
-
-            <div className="glass-panel p-5 flex items-center justify-between">
-              <div className="flex flex-col gap-1">
-                <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Average CTR</span>
-                <span className="text-3xl font-extrabold text-blue-600">{ctr}%</span>
-                <span className="text-[10px] text-zinc-500 mt-1 font-bold">
-                  Goal: &gt;25% CTR
-                </span>
-              </div>
-              <TrendingUp className="w-10 h-10 text-blue-600/20" />
-            </div>
+            <MessageSquare className="w-10 h-10 text-purple-600/20" />
           </div>
 
-          {/* Gated Conversion Performance */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="glass-panel p-4 flex items-center gap-4">
-              <div className="p-3 bg-purple-50 rounded-xl border border-purple-100 flex items-center justify-center">
-                <Mail className="w-5 h-5 text-purple-600" />
-              </div>
-              <div className="flex-1">
-                <span className="text-[10px] text-zinc-500 font-bold uppercase">Email Gate Capture Rate</span>
-                <div className="flex items-baseline gap-2 mt-0.5">
-                  <span className="text-xl font-extrabold text-zinc-900">{emailCaptureRate}%</span>
-                  <span className="text-[10px] text-zinc-400 font-semibold">({totalEmailsCollected} / {totalEmailGates} leads)</span>
-                </div>
-                <div className="w-full h-1.5 bg-zinc-100 rounded-full mt-2 overflow-hidden">
-                  <div className="bg-purple-600 h-full rounded-full" style={{ width: `${emailCaptureRate}%` }} />
-                </div>
-              </div>
+          <div className="glass-panel p-5 flex items-center justify-between">
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Link Click-Throughs</span>
+              <span className="text-3xl font-extrabold text-pink-600">{totalClicks.toLocaleString()}</span>
+              <span className="text-[10px] text-green-650 flex items-center gap-0.5 mt-1 font-bold">
+                <ArrowUpRight className="w-3.5 h-3.5" /> +8.2% this week
+              </span>
             </div>
+            <MousePointer className="w-10 h-10 text-pink-600/20" />
+          </div>
 
-            <div className="glass-panel p-4 flex items-center gap-4">
-              <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 flex items-center justify-center">
-                <UserCheck className="w-5 h-5 text-blue-600" />
+          <div className="glass-panel p-5 flex items-center justify-between">
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Average CTR</span>
+              <span className="text-3xl font-extrabold text-blue-600">{ctr}%</span>
+              <span className="text-[10px] text-zinc-500 mt-1 font-bold">
+                Goal: &gt;25% CTR
+              </span>
+            </div>
+            <TrendingUp className="w-10 h-10 text-blue-600/20" />
+          </div>
+        </div>
+
+        {/* Gated Conversion Performance */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="glass-panel p-4 flex items-center gap-4">
+            <div className="p-3 bg-purple-50 rounded-xl border border-purple-100 flex items-center justify-center">
+              <Mail className="w-5 h-5 text-purple-600" />
+            </div>
+            <div className="flex-1">
+              <span className="text-[10px] text-zinc-500 font-bold uppercase">Email Gate Capture Rate</span>
+              <div className="flex items-baseline gap-2 mt-0.5">
+                <span className="text-xl font-extrabold text-zinc-900">{emailCaptureRate}%</span>
+                <span className="text-[10px] text-zinc-400 font-semibold">({totalEmailsCollected} / {totalEmailGates} leads)</span>
               </div>
-              <div className="flex-1">
-                <span className="text-[10px] text-zinc-500 font-bold uppercase">Follow Gate Verify Rate</span>
-                <div className="flex items-baseline gap-2 mt-0.5">
-                  <span className="text-xl font-extrabold text-zinc-900">{followVerifyRate}%</span>
-                  <span className="text-[10px] text-zinc-400 font-semibold">({totalFollowsVerified} / {totalFollowGates} verified)</span>
-                </div>
-                <div className="w-full h-1.5 bg-zinc-100 rounded-full mt-2 overflow-hidden">
-                  <div className="bg-blue-600 h-full rounded-full" style={{ width: `${followVerifyRate}%` }} />
-                </div>
+              <div className="w-full h-1.5 bg-zinc-100 rounded-full mt-2 overflow-hidden">
+                <div className="bg-purple-600 h-full rounded-full" style={{ width: `${emailCaptureRate}%` }} />
               </div>
             </div>
           </div>
 
-          {/* Interactive Chart Panel */}
+          <div className="glass-panel p-4 flex items-center gap-4">
+            <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 flex items-center justify-center">
+              <UserCheck className="w-5 h-5 text-blue-600" />
+            </div>
+            <div className="flex-1">
+              <span className="text-[10px] text-zinc-500 font-bold uppercase">Follow Gate Verify Rate</span>
+              <div className="flex items-baseline gap-2 mt-0.5">
+                <span className="text-xl font-extrabold text-zinc-900">{followVerifyRate}%</span>
+                <span className="text-[10px] text-zinc-400 font-semibold">({totalFollowsVerified} / {totalFollowGates} verified)</span>
+              </div>
+              <div className="w-full h-1.5 bg-zinc-100 rounded-full mt-2 overflow-hidden">
+                <div className="bg-blue-600 h-full rounded-full" style={{ width: `${followVerifyRate}%` }} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Interactive Chart Panel */}
+        <div className="glass-panel p-6 flex flex-col gap-4">
+          <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-wider border-b border-zinc-100 pb-2.5">
+            Engagement Volume Over Time
+          </h3>
+          <SVGChart data={dailyChartData} />
+        </div>
+
+        {/* Keywords and Insights */}
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* Top Keywords */}
           <div className="glass-panel p-6 flex flex-col gap-4">
-            <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-wider border-b border-zinc-100 pb-2.5">
-              Engagement Volume Over Time
+            <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-wider border-b border-zinc-100 pb-2">
+              Top Performing Keywords
             </h3>
-            <SVGChart data={dailyChartData} />
-          </div>
 
-          {/* Keywords and Insights */}
-          <div className="grid md:grid-cols-2 gap-6">
-            {/* Top Keywords */}
-            <div className="glass-panel p-6 flex flex-col gap-4">
-              <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-wider border-b border-zinc-100 pb-2">
-                Top Performing Keywords
-              </h3>
-
-              <div className="flex flex-col gap-4">
-                {sortedKeywords.map(([kw, count], idx) => {
-                  const pctWidth = totalSent > 0 ? (count / totalSent) * 100 : 0;
-                  return (
-                    <div key={kw} className="flex flex-col gap-1.5">
-                      <div className="flex justify-between text-xs font-semibold text-zinc-650">
-                        <span className="text-zinc-800 font-bold">#{idx + 1} {kw.toUpperCase()}</span>
-                        <span className="text-zinc-500">{count} matches ({pctWidth.toFixed(0)}%)</span>
-                      </div>
-                      <div className="w-full h-2 rounded-full bg-zinc-100 overflow-hidden border border-zinc-200">
-                        <div 
-                          className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"
-                          style={{ width: `${pctWidth}%` }}
-                        />
-                      </div>
+            <div className="flex flex-col gap-4">
+              {sortedKeywords.map(([kw, count], idx) => {
+                const pctWidth = totalSent > 0 ? (count / totalSent) * 100 : 0;
+                return (
+                  <div key={kw} className="flex flex-col gap-1.5">
+                    <div className="flex justify-between text-xs font-semibold text-zinc-650">
+                      <span className="text-zinc-800 font-bold">#{idx + 1} {kw.toUpperCase()}</span>
+                      <span className="text-zinc-500">{count} matches ({pctWidth.toFixed(0)}%)</span>
                     </div>
-                  );
-                })}
-                {sortedKeywords.length === 0 && (
-                  <p className="text-xs text-zinc-500 py-8 text-center">
-                    No keywords detected yet. Send test interactions to populate stats!
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Campaign efficiency info */}
-            <div className="glass-panel p-6 flex flex-col justify-between gap-4">
-              <div className="flex flex-col gap-2">
-                <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-wider border-b border-zinc-100 pb-2">
-                  Campaign Conversion Insights
-                </h3>
-                <p className="text-xs text-zinc-500 leading-relaxed mt-1">
-                  Automated Instagram replies achieve 5x the conversion rate of traditional profile link-in-bio setups. Connecting Gates turns passive commenters into high-intent subscribers instantly.
+                    <div className="w-full h-2 rounded-full bg-zinc-100 overflow-hidden border border-zinc-200">
+                      <div 
+                        className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"
+                        style={{ width: `${pctWidth}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+              {sortedKeywords.length === 0 && (
+                <p className="text-xs text-zinc-500 py-8 text-center">
+                  No keywords detected yet. Send test interactions to populate stats!
                 </p>
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-purple-50 border border-purple-100 flex items-start gap-2.5">
-                <Sparkles className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
-                <p className="text-[10px] text-purple-950 leading-normal font-semibold">
-                  Pro-Tip: Keep your keyword replies brief, and use a clear Call to Action (CTA) on your landing page to sustain the highest click rates.
-                </p>
-              </div>
+              )}
             </div>
           </div>
 
-          {/* Campaign Performance Breakdown Table */}
-          <div className="glass-panel p-6 flex flex-col gap-4">
-            <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-wider border-b border-zinc-100 pb-2 flex items-center justify-between">
-              <span>Automation Performance Breakdown</span>
-              <span className="text-[10px] text-zinc-400 lowercase font-medium">({automations.length} campaigns configured)</span>
-            </h3>
-            
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="border-b border-zinc-150 text-[10px] text-zinc-500 font-bold uppercase bg-zinc-50">
-                    <th className="p-3">Campaign Name</th>
-                    <th className="p-3">Trigger Type</th>
-                    <th className="p-3">Action Gate</th>
-                    <th className="p-3 text-right">DMs Sent</th>
-                    <th className="p-3 text-right">Clicks</th>
-                    <th className="p-3 text-right">CTR</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-100 text-zinc-700">
-                  {campaignStats.map(camp => (
-                    <tr key={camp.id} className="hover:bg-zinc-50/50">
-                      <td className="p-3 font-bold text-zinc-900">{camp.name}</td>
-                      <td className="p-3">
-                        <span className="px-2 py-0.5 bg-zinc-100 border border-zinc-200 text-[10px] rounded-md font-semibold text-zinc-700 capitalize">
-                          {camp.triggerType}
-                        </span>
-                      </td>
-                      <td className="p-3">
-                        <span className={`px-2 py-0.5 text-[10px] rounded-md font-semibold capitalize ${
-                          camp.actionType === 'email_gate' 
-                            ? 'bg-purple-50 text-purple-700 border border-purple-100' 
-                            : camp.actionType === 'follow_gate'
-                            ? 'bg-blue-50 text-blue-700 border border-blue-100'
-                            : 'bg-zinc-50 text-zinc-650'
-                        }`}>
-                          {camp.actionType.replace('_', ' ')}
-                        </span>
-                      </td>
-                      <td className="p-3 text-right font-medium">{camp.sent}</td>
-                      <td className="p-3 text-right font-medium">{camp.clicks}</td>
-                      <td className="p-3 text-right font-bold text-zinc-950">{camp.ctr}%</td>
-                    </tr>
-                  ))}
-                  {campaignStats.length === 0 && (
-                    <tr>
-                      <td colSpan={6} className="p-4 text-center text-zinc-500">
-                        No active automations found. Create one from the Dashboard page!
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      ) : (
-        /* AUDIENCE INSIGHTS (GATED) */
-        <div className="relative">
-          {isFreePlan && (
-            <div className="absolute inset-0 bg-white/70 backdrop-blur-[6px] rounded-2xl flex flex-col items-center justify-center text-center p-6 z-30">
-              <div className="glass-panel bg-white p-6 max-w-sm w-full flex flex-col gap-4 border border-zinc-250 shadow-xl">
-                <div className="w-12 h-12 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-650 mx-auto shadow-inner">
-                  <Lock className="w-6 h-6" />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <h3 className="text-sm font-extrabold text-zinc-900">Unlock Audience Insights</h3>
-                  <p className="text-[11px] text-zinc-500 leading-relaxed">
-                    Growth and Pro plan subscribers unlock geographic visitor statistics, conversion breakdowns per country, and device analytics.
-                  </p>
-                </div>
-                <button
-                  onClick={() => upgradePlan('pro', 'monthly')}
-                  className="w-full btn-gradient py-2.5 text-xs flex items-center justify-center gap-1.5 font-bold shadow-md"
-                >
-                  <Sparkles className="w-4 h-4" /> Upgrade to Pro ($15/mo)
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Blurred/Mocked visual content */}
-          <div className={`flex flex-col gap-6 ${isFreePlan ? 'select-none pointer-events-none filter blur-[2px]' : ''}`}>
-            <div className="grid md:grid-cols-3 gap-4">
-              <div className="glass-panel p-4 flex flex-col gap-1">
-                <span className="text-[10px] text-zinc-500 font-bold uppercase">Top Location</span>
-                <span className="text-xl font-extrabold text-zinc-900">United States (39%)</span>
-              </div>
-              <div className="glass-panel p-4 flex flex-col gap-1">
-                <span className="text-[10px] text-zinc-500 font-bold uppercase">Active Cities</span>
-                <span className="text-xl font-extrabold text-zinc-900">New York, London, Lisbon</span>
-              </div>
-              <div className="glass-panel p-4 flex flex-col gap-1">
-                <span className="text-[10px] text-zinc-500 font-bold uppercase">Mobile Conversion</span>
-                <span className="text-xl font-extrabold text-zinc-900">88.4% Mobile Devices</span>
-              </div>
-            </div>
-
-            <div className="glass-panel p-6 flex flex-col gap-4">
-              <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-wider border-b border-zinc-150 pb-2 flex items-center gap-1.5">
-                <Globe className="w-4 h-4 text-purple-600" /> Geography & Conversion Breakdown
+          {/* Campaign efficiency info */}
+          <div className="glass-panel p-6 flex flex-col justify-between gap-4">
+            <div className="flex flex-col gap-2">
+              <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-wider border-b border-zinc-100 pb-2">
+                Campaign Conversion Insights
               </h3>
+              <p className="text-xs text-zinc-500 leading-relaxed mt-1">
+                Automated Instagram replies achieve 5x the conversion rate of traditional profile link-in-bio setups. Connecting Gates turns passive commenters into high-intent subscribers instantly.
+              </p>
+            </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="border-b border-zinc-150 text-[10px] text-zinc-500 font-bold uppercase bg-zinc-50">
-                      <th className="p-3">Country Name</th>
-                      <th className="p-3">Unique Visitors</th>
-                      <th className="p-3">Share</th>
-                      <th className="p-3 text-right">Conversion Ratio</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-100 text-zinc-700">
-                    {audienceGeoData.map(row => (
-                      <tr key={row.country} className="hover:bg-zinc-50/50">
-                        <td className="p-3 font-semibold text-zinc-900 flex items-center gap-2">
-                          <Map className="w-3.5 h-3.5 text-zinc-400" /> {row.country}
-                        </td>
-                        <td className="p-3">{row.visitors.toLocaleString()}</td>
-                        <td className="p-3">
-                          <div className="flex items-center gap-2 w-full max-w-[120px]">
-                            <span className="text-[10px] font-bold text-zinc-500">{row.share}%</span>
-                            <div className="w-full h-1.5 bg-zinc-100 rounded-full overflow-hidden">
-                              <div className="bg-purple-500 h-full" style={{ width: `${row.share}%` }} />
-                            </div>
-                          </div>
-                        </td>
-                        <td className="p-3 text-right font-bold text-green-600">{row.conversion}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            <div className="p-3.5 rounded-xl bg-purple-50 border border-purple-100 flex items-start gap-2.5">
+              <Sparkles className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+              <p className="text-[10px] text-purple-950 leading-normal font-semibold">
+                Pro-Tip: Keep your keyword replies brief, and use a clear Call to Action (CTA) on your landing page to sustain the highest click rates.
+              </p>
             </div>
           </div>
         </div>
-      )}
+
+        {/* Campaign Performance Breakdown Table */}
+        <div className="glass-panel p-6 flex flex-col gap-4">
+          <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-wider border-b border-zinc-100 pb-2 flex items-center justify-between">
+            <span>Automation Performance Breakdown</span>
+            <span className="text-[10px] text-zinc-400 lowercase font-medium">({automations.length} campaigns configured)</span>
+          </h3>
+          
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-zinc-150 text-[10px] text-zinc-500 font-bold uppercase bg-zinc-50">
+                  <th className="p-3">Campaign Name</th>
+                  <th className="p-3">Trigger Type</th>
+                  <th className="p-3">Action Gate</th>
+                  <th className="p-3 text-right">DMs Sent</th>
+                  <th className="p-3 text-right">Clicks</th>
+                  <th className="p-3 text-right">CTR</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100 text-zinc-700">
+                {campaignStats.map(camp => (
+                  <tr key={camp.id} className="hover:bg-zinc-50/50">
+                    <td className="p-3 font-bold text-zinc-900">{camp.name}</td>
+                    <td className="p-3">
+                      <span className="px-2 py-0.5 bg-zinc-100 border border-zinc-200 text-[10px] rounded-md font-semibold text-zinc-700 capitalize">
+                        {camp.triggerType}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <span className={`px-2 py-0.5 text-[10px] rounded-md font-semibold capitalize ${
+                        camp.actionType === 'email_gate' 
+                          ? 'bg-purple-50 text-purple-700 border border-purple-100' 
+                          : camp.actionType === 'follow_gate'
+                          ? 'bg-blue-50 text-blue-700 border border-blue-100'
+                          : 'bg-zinc-50 text-zinc-650'
+                      }`}>
+                        {camp.actionType.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td className="p-3 text-right font-medium">{camp.sent}</td>
+                    <td className="p-3 text-right font-medium">{camp.clicks}</td>
+                    <td className="p-3 text-right font-bold text-zinc-950">{camp.ctr}%</td>
+                  </tr>
+                ))}
+                {campaignStats.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="p-4 text-center text-zinc-500">
+                      No active automations found. Create one from the Dashboard page!
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
