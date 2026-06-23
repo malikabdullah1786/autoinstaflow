@@ -70,7 +70,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     isBannerDismissed,
     dismissUpgradeBanner,
     events,
-    loading
+    loading,
+    globalUsages
   } = useApp();
   const pathname = usePathname();
   const router = useRouter();
@@ -139,9 +140,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   const activeAccount = accounts.find(a => a.id === activeAccountId);
-  const quota = getRemainingQuota(workspace);
-  const totalLimit = workspace.dm_quota_monthly + workspace.dm_addon_credits;
-  const totalUsed = workspace.dm_sent_current_period;
+  
+  // Quota calculation (Global limit for Free plans, Workspace quota for Paid plans)
+  const totalLimit = workspace.plan === 'free' ? 500 : (workspace.dm_quota_monthly + workspace.dm_addon_credits);
+  const totalUsed = (workspace.plan === 'free' && activeAccount)
+    ? (globalUsages[activeAccount.instagram_user_id] || 0)
+    : workspace.dm_sent_current_period;
   const pct = Math.min(100, totalLimit > 0 ? (totalUsed / totalLimit) * 100 : 0);
 
   const dmsSentTodayCount = events.filter(e => {
@@ -434,7 +438,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* DM Quota */}
         <div className="flex flex-col gap-1">
           <div className="flex justify-between text-[11px] font-semibold text-zinc-500">
-            <span>DMs sent</span>
+            <span>{workspace.plan === 'free' ? 'Global account DMs' : 'DMs sent'}</span>
             <span className="font-bold text-zinc-850">{totalUsed}/{totalLimit}</span>
           </div>
           <div className="w-full h-1 bg-zinc-100 rounded-full overflow-hidden border border-zinc-200">

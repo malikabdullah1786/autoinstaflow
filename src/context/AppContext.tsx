@@ -37,6 +37,7 @@ interface AppContextType {
   isLoadingPosts: boolean;
   isBannerDismissed: boolean;
   loading: boolean;
+  globalUsages: Record<string, number>;
   
   // Actions
   signInGoogle: () => void;
@@ -115,6 +116,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activeAccountPosts, setActiveAccountPosts] = useState<any[]>([]);
   const [isLoadingPosts, setIsLoadingPosts] = useState<boolean>(false);
   const [isBannerDismissed, setIsBannerDismissed] = useState<boolean>(false);
+  const [globalUsages, setGlobalUsages] = useState<Record<string, number>>({});
   const [mounted, setMounted] = useState(false);
 
   // Fetch real posts of the active Instagram Account
@@ -213,6 +215,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     setActiveAccountId(cachedActiveAcc);
                   } else if (accountsRes.data.length > 0) {
                     setActiveAccountId(accountsRes.data[0].id);
+                  }
+
+                  // Fetch global usage counts for these accounts
+                  const accountUserIds = accountsRes.data.map(a => a.instagram_user_id).filter(Boolean);
+                  if (accountUserIds.length > 0) {
+                    const { data: usages } = await supabase
+                      .from('instagram_global_usage')
+                      .select('*')
+                      .in('instagram_user_id', accountUserIds);
+                    
+                    if (usages) {
+                      const usageMap: Record<string, number> = {};
+                      const thisMonthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+                      usages.forEach(u => {
+                        const resetDate = new Date(u.reset_date);
+                        if (resetDate >= thisMonthStart) {
+                          usageMap[u.instagram_user_id] = u.dm_sent_count;
+                        } else {
+                          usageMap[u.instagram_user_id] = 0;
+                        }
+                      });
+                      setGlobalUsages(usageMap);
+                    }
                   }
                 }
                 if (automationsRes.data) setAutomations(automationsRes.data);
@@ -411,6 +436,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const tokenExpires = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString();
         const cleanUsername = username.trim().toLowerCase();
         
+        // Check if this username is already connected to a DIFFERENT workspace
+        const { data: globalExisting } = await supabase
+          .from('instagram_accounts')
+          .select('workspace_id')
+          .eq('username', cleanUsername)
+          .neq('workspace_id', workspace.id)
+          .maybeSingle();
+
+        if (globalExisting) {
+          return {
+            success: false,
+            error: 'This Instagram account is already connected to another email/workspace. Please disconnect it from that account first.'
+          };
+        }
+
         // Check if an account with this username already exists in this workspace
         const { data: existingAcc } = await supabase
           .from('instagram_accounts')
@@ -519,7 +559,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (isSupabaseConfigured()) {
       try {
         const cleanUsername = accountData.username.trim().toLowerCase();
-        
+
+        // Check if this Instagram account is already connected to a DIFFERENT workspace
+        const { data: globalExisting } = await supabase
+          .from('instagram_accounts')
+          .select('workspace_id')
+          .eq('instagram_user_id', accountData.instagramUserId)
+          .neq('workspace_id', workspace.id)
+          .maybeSingle();
+
+        if (globalExisting) {
+          return {
+            success: false,
+            error: 'This Instagram account is already connected to another email/workspace. Please disconnect it from that account first.'
+          };
+        }
+
         // Check if an account with this username already exists in this workspace
         const { data: existingAcc } = await supabase
           .from('instagram_accounts')
@@ -946,7 +1001,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Property 14: DM Quota Invariant check
     const quota = getRemainingQuota(workspace);
-    if (quota.totalRemaining <= 0) {
+    const activeGlobalUsageCount = globalUsages[activeAcc.instagram_user_id] || 0;
+    const isGlobalLimitReached = workspace.plan === 'free' && activeGlobalUsageCount >= 500;
+
+    if (quota.totalRemaining <= 0 || isGlobalLimitReached) {
       if (isSupabaseConfigured()) {
         try {
           const quotaEventPayload = {
@@ -955,7 +1013,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             event_type: 'dm_blocked_quota',
             instagram_user_id: igUserId,
             instagram_username: instagramUsername,
-            metadata: { text: commentText },
+            metadata: { text: commentText, reason: isGlobalLimitReached ? 'global_account_limit_exhausted' : 'workspace_limit_exhausted' },
             occurred_at: new Date().toISOString()
           };
           const { data } = await supabase.from('automation_events').insert(quotaEventPayload).select().single();
@@ -973,7 +1031,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           event_type: 'dm_blocked_quota',
           instagram_user_id: igUserId,
           instagram_username: instagramUsername,
-          metadata: { text: commentText },
+          metadata: { text: commentText, reason: isGlobalLimitReached ? 'global_account_limit_exhausted' : 'workspace_limit_exhausted' },
           occurred_at: new Date().toISOString(),
         };
         setEvents(prev => [quotaEvent, ...prev]);
@@ -1075,6 +1133,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           dm_sent_current_period: newDMSentCurrent,
           dm_addon_credits: newAddonCredits
         }).eq('id', workspace.id);
+
+        // Update global usage in Supabase
+        const { data: globalUsage } = await supabase
+          .from('instagram_global_usage')
+          .select('*')
+          .eq('instagram_user_id', activeAcc.instagram_user_id)
+          .maybeSingle();
+
+        const thisMonthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
+        if (globalUsage) {
+          const resetDate = new Date(globalUsage.reset_date);
+          if (resetDate < thisMonthStart) {
+            await supabase.from('instagram_global_usage').update({
+              dm_sent_count: 1,
+              reset_date: thisMonthStart.toISOString(),
+              updated_at: new Date().toISOString()
+            }).eq('instagram_user_id', activeAcc.instagram_user_id);
+          } else {
+            await supabase.from('instagram_global_usage').update({
+              dm_sent_count: globalUsage.dm_sent_count + 1,
+              updated_at: new Date().toISOString()
+            }).eq('instagram_user_id', activeAcc.instagram_user_id);
+          }
+        } else {
+          await supabase.from('instagram_global_usage').insert({
+            instagram_user_id: activeAcc.instagram_user_id,
+            dm_sent_count: 1,
+            reset_date: thisMonthStart.toISOString(),
+            updated_at: new Date().toISOString()
+          });
+        }
         
         const contactEmail = isEmailCollected ? inputEmail : (dbContact?.email || undefined);
         
@@ -1245,6 +1335,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       dm_sent_current_period: newDMSentCurrent,
       dm_addon_credits: newAddonCredits,
     });
+
+    setGlobalUsages(prev => ({
+      ...prev,
+      [activeAcc.instagram_user_id]: (prev[activeAcc.instagram_user_id] || 0) + 1
+    }));
     
     setAutomations(
       automations.map(a => {
@@ -1647,6 +1742,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isLoadingPosts,
         isBannerDismissed,
         loading: !mounted,
+        globalUsages,
         signInGoogle,
         signInSandbox,
         signOut,

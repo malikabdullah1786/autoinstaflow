@@ -55,6 +55,7 @@ export interface TriggerConfig {
 export interface ActionConfig {
   message: string;
   url: string;
+  links?: { url: string; label: string }[];
   gate?: 'email' | 'follow' | null;
   prompt?: string;
   comment_reply?: string;

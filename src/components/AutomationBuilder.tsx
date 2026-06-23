@@ -15,7 +15,8 @@ import {
   Zap, 
   Save,
   Lock,
-  ChevronRight
+  ChevronRight,
+  PlusCircle
 } from 'lucide-react';
 
 interface AutomationBuilderProps {
@@ -36,8 +37,24 @@ export const AutomationBuilder: React.FC<AutomationBuilderProps> = ({ initialDat
   
   // Action configs
   const [message, setMessage] = useState(initialData?.action_config.message || 'Hey! Here is the link you requested:');
-  const [url, setUrl] = useState(initialData?.action_config.url || 'https://');
+  const [links, setLinks] = useState<{ url: string; label: string }[]>(() => {
+    if (initialData?.action_config.links && Array.isArray(initialData.action_config.links)) {
+      return initialData.action_config.links;
+    }
+    if (initialData?.action_config.url) {
+      return [{ url: initialData.action_config.url, label: 'Link' }];
+    }
+    return [{ url: 'https://', label: '' }];
+  });
   const [commentReply, setCommentReply] = useState(initialData?.action_config.comment_reply || '');
+
+  const getLinkLimit = () => {
+    if (!workspace) return 1;
+    if (workspace.plan === 'free') return 1;
+    if (workspace.plan === 'pro') return 3;
+    return 100; // unlimited
+  };
+  const maxLinks = getLinkLimit();
   
   // Feedback
   const [validationError, setValidationError] = useState('');
@@ -104,6 +121,8 @@ export const AutomationBuilder: React.FC<AutomationBuilderProps> = ({ initialDat
 
     const selectedPost = activeAccountPosts.find(p => p.id === postId);
 
+    const cleanedLinks = links.map(l => ({ url: l.url, label: l.label.trim() || 'Link' }));
+
     // Build payload
     const payload: Partial<Automation> = {
       id: initialData?.id,
@@ -118,7 +137,8 @@ export const AutomationBuilder: React.FC<AutomationBuilderProps> = ({ initialDat
       action_type: actionType,
       action_config: {
         message,
-        url,
+        url: cleanedLinks[0]?.url || '',
+        links: cleanedLinks,
         comment_reply: triggerType === 'comment' ? commentReply : undefined,
         gate: actionType === 'email_gate' ? 'email' : actionType === 'follow_gate' ? 'follow' : null,
       },
@@ -339,22 +359,91 @@ export const AutomationBuilder: React.FC<AutomationBuilderProps> = ({ initialDat
               </div>
 
               <div className="flex flex-col justify-between gap-4">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-zinc-500">Target URL / Asset Link</label>
-                  <input
-                    type="url"
-                    required
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    placeholder="https://example.com/asset"
-                    className="glass-input text-xs"
-                  />
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-zinc-500">Target URLs / Asset Links</label>
+                    <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">
+                      Limit: {links.length} / {maxLinks === 100 ? '∞' : maxLinks}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col gap-3">
+                    {links.map((link, idx) => (
+                      <div key={idx} className="flex gap-2 items-center bg-zinc-50 p-2 rounded-lg border border-zinc-150">
+                        <div className="flex flex-col gap-1.5 flex-1">
+                          <input
+                            type="text"
+                            required
+                            value={link.label}
+                            onChange={(e) => {
+                              const newLinks = [...links];
+                              newLinks[idx].label = e.target.value;
+                              setLinks(newLinks);
+                            }}
+                            placeholder="Button Text (e.g. Visit Link)"
+                            className="glass-input text-[11px] py-1 px-2"
+                          />
+                          <input
+                            type="url"
+                            required
+                            value={link.url}
+                            onChange={(e) => {
+                              const newLinks = [...links];
+                              newLinks[idx].url = e.target.value;
+                              setLinks(newLinks);
+                            }}
+                            placeholder="https://example.com/asset"
+                            className="glass-input text-[11px] py-1 px-2"
+                          />
+                        </div>
+                        {links.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLinks(links.filter((_, i) => i !== idx));
+                            }}
+                            className="p-1.5 text-red-550 hover:bg-red-50 rounded transition"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {links.length < maxLinks ? (
+                    <button
+                      type="button"
+                      onClick={() => setLinks([...links, { url: 'https://', label: '' }])}
+                      className="py-1.5 px-3 rounded-lg border border-dashed border-zinc-300 hover:border-zinc-400 text-xs font-bold text-zinc-600 hover:text-zinc-800 transition flex items-center justify-center gap-1 bg-white"
+                    >
+                      <PlusCircle className="w-3.5 h-3.5" /> Add Another Link
+                    </button>
+                  ) : (
+                    maxLinks < 100 && (
+                      <div className="flex items-center justify-between p-2.5 rounded-lg bg-purple-50 border border-purple-100 text-[10px] text-purple-750 font-semibold gap-2">
+                        <span>Reached plan limit ({maxLinks} link{maxLinks > 1 ? 's' : ''}).</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            upgradePlan(workspace?.plan === 'free' ? 'pro' : 'growth', 'monthly');
+                            router.push('/dashboard/billing');
+                          }}
+                          className="bg-purple-600 hover:bg-purple-500 px-2 py-1 rounded text-[9px] font-bold text-white shadow-sm transition whitespace-nowrap"
+                        >
+                          Upgrade Plan
+                        </button>
+                      </div>
+                    )
+                  )}
                 </div>
 
                 <div className="text-[10px] text-zinc-600 leading-relaxed bg-zinc-50 p-2.5 rounded-lg border border-zinc-150">
-                  {actionType === 'send_dm' && "The user will immediately receive the message with the clickable link in their Instagram inbox."}
-                  {actionType === 'email_gate' && "The bot will reply asking for their email first. Once typed, the email is recorded in your Contacts and the link is delivered."}
-                  {actionType === 'follow_gate' && "The bot will verify follow status. If not following, it prompts them to follow first. Once followed, it releases the link."}
+                  {actionType === 'send_dm' && "The user will immediately receive the message with the clickable link buttons in their Instagram inbox."}
+                  {actionType === 'email_gate' && "The bot will reply asking for their email first. Once typed, the email is recorded in your Contacts and the link buttons are delivered."}
+                  {actionType === 'follow_gate' && "The bot will verify follow status. If not following, it prompts them to follow first. Once followed, it releases the link buttons."}
                 </div>
               </div>
             </div>
@@ -478,12 +567,21 @@ export const AutomationBuilder: React.FC<AutomationBuilderProps> = ({ initialDat
                 )}
 
                 {/* Final payload link bubble */}
-                <div className="self-start bg-purple-50 border border-purple-200 text-zinc-850 px-3 py-1.5 rounded-2xl rounded-tl-sm max-w-[85%] leading-relaxed flex flex-col gap-1.5 shadow-sm">
-                  <p className="text-zinc-800">{message || "Hey! Here's the link:"}</p>
-                  <div className="p-1.5 rounded-lg bg-zinc-50 border border-zinc-150 text-[8px] text-purple-600 truncate flex items-center gap-1">
-                    <Link2 className="w-2.5 h-2.5 shrink-0" />
-                    <span className="truncate underline font-semibold">{url || "https://example.com/asset"}</span>
-                  </div>
+                <div className="self-start bg-purple-50 border border-purple-200 text-zinc-850 px-3 py-1.5 rounded-2xl rounded-tl-sm max-w-[85%] leading-relaxed flex flex-col gap-1.5 shadow-sm w-full">
+                  <p className="text-zinc-805 text-[10px]">{message || "Hey! Here's the link:"}</p>
+                  {links.map((link, idx) => (
+                    <div key={idx} className="p-1.5 rounded-lg bg-white border border-zinc-150 text-[9px] text-purple-600 truncate flex items-center justify-between gap-1 shadow-sm">
+                      <div className="flex items-center gap-1 min-w-0">
+                        <Link2 className="w-2.5 h-2.5 shrink-0 text-purple-500" />
+                        <span className="truncate font-bold text-zinc-800">
+                          {link.label || 'Link'}
+                        </span>
+                      </div>
+                      <span className="text-[7px] text-purple-400 truncate max-w-[75px]">
+                        {link.url}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>

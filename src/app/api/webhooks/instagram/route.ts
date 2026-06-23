@@ -167,6 +167,24 @@ export async function POST(req: Request) {
 
             if (!workspace) continue;
 
+            // Global quota check for Free plans
+            if (workspace.plan === 'free') {
+              const globalQuotaExceeded = await checkGlobalQuotaExceeded(account.instagram_user_id);
+              if (globalQuotaExceeded) {
+                console.warn(`Global quota exhausted for Instagram account ${account.instagram_user_id}`);
+                await supabase.from('automation_events').insert({
+                  automation_id: matchedAut.id,
+                  workspace_id: account.workspace_id,
+                  event_type: 'dm_blocked_quota',
+                  instagram_user_id: igUserId,
+                  instagram_username: senderUsername,
+                  metadata: { text: commentText, reason: 'global_account_limit_exhausted' },
+                  occurred_at: new Date().toISOString()
+                });
+                continue;
+              }
+            }
+
             const planRemaining = Math.max(0, workspace.dm_quota_monthly - workspace.dm_sent_current_period);
             const addonRemaining = Math.max(0, workspace.dm_addon_credits);
             const totalRemaining = planRemaining + addonRemaining;
@@ -230,8 +248,38 @@ export async function POST(req: Request) {
 
             // Send private reply via Meta Graph API (notifying the user on the comment thread)
             const commentReplyText = isFollowPrompt
-              ? `I've sent you a DM to verify your follow status!`
-              : (isEmailPrompt ? `I've sent you a DM to collect your email!` : finalMessage);
+              ? (matchedAut.action_config?.message || `Nearly there! The link is especially for my followers ✨\n\nRight after you follow me, click the button below so I can verify and send you the link! 🎉`)
+              : (isEmailPrompt ? `Please reply to this DM with your email address to receive your link! 📩` : finalMessage);
+
+            let messageBody: any = {};
+            if (isFollowPrompt) {
+              messageBody = {
+                text: commentReplyText,
+                quick_replies: [
+                  {
+                    content_type: 'text',
+                    title: 'Following',
+                    payload: `check_follow_${matchedAut.id}`
+                  }
+                ]
+              };
+            } else if (isEmailPrompt) {
+              messageBody = {
+                text: commentReplyText
+              };
+            } else {
+              const actionLinks = matchedAut.action_config?.links || (matchedAut.action_config?.url ? [{ url: matchedAut.action_config.url, label: matchedAut.name || 'Download Now' }] : []);
+              if (actionLinks.length > 0) {
+                const linksText = actionLinks.map((l: any) => `${l.label || 'Link'}: ${l.url}`).join('\n');
+                messageBody = {
+                  text: `${commentReplyText}\n\n${linksText}`.trim()
+                };
+              } else {
+                messageBody = {
+                  text: commentReplyText
+                };
+              }
+            }
 
             const response = await fetch(`https://graph.instagram.com/v20.0/${instagramAccountId}/messages`, {
               method: 'POST',
@@ -243,9 +291,7 @@ export async function POST(req: Request) {
                 recipient: {
                   comment_id: commentId
                 },
-                message: {
-                  text: (isEmailPrompt || isFollowPrompt) ? commentReplyText : `${commentReplyText} ${finalUrl}`.trim()
-                }
+                message: messageBody
               })
             });
 
@@ -265,35 +311,10 @@ export async function POST(req: Request) {
               continue;
             }
 
-            // Send the prompt/link directly to DM as well
-            if (isFollowPrompt) {
-              await sendInstagramDMWithQuickReplies(
-                instagramAccountId,
-                senderIgId,
-                finalMessage,
-                quickReplies,
-                account.access_token
-              );
-            } else if (isEmailPrompt) {
-              await sendInstagramDM(
-                instagramAccountId,
-                senderIgId,
-                finalMessage,
-                account.access_token
-              );
-            } else if (finalUrl) {
-              await sendInstagramLinkButton(
-                instagramAccountId,
-                senderIgId,
-                finalMessage || 'Click below for complete details',
-                finalUrl,
-                matchedAut.name || 'Download Now',
-                account.access_token
-              );
+            // Quota Deduction (only if not gated, as gates deduct quota when delivering the final link in messaging webhook)
+            if (!isFollowPrompt && !isEmailPrompt) {
+              await deductWorkspaceQuota(workspace, account.instagram_user_id);
             }
-
-            // Quota Deduction
-            await deductWorkspaceQuota(workspace);
 
             // Update/Upsert Contact
             const contactEmail = extractedEmail || dbContact?.email || null;
@@ -347,7 +368,7 @@ export async function POST(req: Request) {
               metadata: {
                 text: commentText,
                 action: matchedAut.action_type,
-                message: finalMessage,
+                message: (isEmailPrompt || isFollowPrompt) ? commentReplyText : finalMessage,
                 url: finalUrl,
                 keyword: matchedKeyword
               },
@@ -485,6 +506,24 @@ export async function POST(req: Request) {
 
               if (!workspace) continue;
 
+              // Global quota check for Free plans
+              if (workspace.plan === 'free') {
+                const globalQuotaExceeded = await checkGlobalQuotaExceeded(account.instagram_user_id);
+                if (globalQuotaExceeded) {
+                  console.warn(`Global quota exhausted for Instagram account ${account.instagram_user_id}`);
+                  await supabase.from('automation_events').insert({
+                    automation_id: matchedAut.id,
+                    workspace_id: account.workspace_id,
+                    event_type: 'dm_blocked_quota',
+                    instagram_user_id: igUserId,
+                    instagram_username: senderUsername,
+                    metadata: { text: messageText, reason: 'global_account_limit_exhausted' },
+                    occurred_at: new Date().toISOString()
+                  });
+                  continue;
+                }
+              }
+
               const planRemaining = Math.max(0, workspace.dm_quota_monthly - workspace.dm_sent_current_period);
               const addonRemaining = Math.max(0, workspace.dm_addon_credits);
               const totalRemaining = planRemaining + addonRemaining;
@@ -549,19 +588,28 @@ export async function POST(req: Request) {
                   finalMessage,
                   account.access_token
                 );
-              } else if (finalUrl) {
-                await sendInstagramLinkButton(
-                  instagramAccountId,
-                  senderId,
-                  finalMessage || 'Click below for complete details',
-                  finalUrl,
-                  matchedAut.name || 'Download Now',
-                  account.access_token
-                );
+              } else {
+                const actionLinks = matchedAut.action_config?.links || (matchedAut.action_config?.url ? [{ url: matchedAut.action_config.url, label: matchedAut.name || 'Download Now' }] : []);
+                if (actionLinks.length > 0) {
+                  await sendInstagramLinkButtons(
+                    instagramAccountId,
+                    senderId,
+                    finalMessage || 'Click below for complete details',
+                    actionLinks,
+                    account.access_token
+                  );
+                } else {
+                  await sendInstagramDM(
+                    instagramAccountId,
+                    senderId,
+                    finalMessage,
+                    account.access_token
+                  );
+                }
               }
 
               // Quota Deduction
-              await deductWorkspaceQuota(workspace);
+              await deductWorkspaceQuota(workspace, account.instagram_user_id);
 
               // Update/Upsert Contact
               const contactEmail = extractedEmail || dbContact?.email || null;
@@ -681,6 +729,15 @@ export async function POST(req: Request) {
 
             if (!workspace) continue;
 
+            // Global quota check for Free plans
+            if (workspace.plan === 'free') {
+              const globalQuotaExceeded = await checkGlobalQuotaExceeded(account.instagram_user_id);
+              if (globalQuotaExceeded) {
+                console.warn(`Global quota exhausted for Instagram account ${account.instagram_user_id} on release.`);
+                continue;
+              }
+            }
+
             const planRemaining = Math.max(0, workspace.dm_quota_monthly - workspace.dm_sent_current_period);
             const addonRemaining = Math.max(0, workspace.dm_addon_credits);
             const totalRemaining = planRemaining + addonRemaining;
@@ -696,15 +753,14 @@ export async function POST(req: Request) {
 
               if (isFollowing) {
                 const successMessage = `${matchedAut.action_config?.message || 'Click below for complete details'}`.trim();
-                const successUrl = matchedAut.action_config?.url || '';
+                const actionLinks = matchedAut.action_config?.links || (matchedAut.action_config?.url ? [{ url: matchedAut.action_config.url, label: matchedAut.name || 'Download Now' }] : []);
 
-                if (successUrl) {
-                  await sendInstagramLinkButton(
+                if (actionLinks.length > 0) {
+                  await sendInstagramLinkButtons(
                     instagramAccountId,
                     senderId,
                     successMessage,
-                    successUrl,
-                    matchedAut.name || 'Download Now',
+                    actionLinks,
                     account.access_token
                   );
                 } else {
@@ -712,7 +768,7 @@ export async function POST(req: Request) {
                 }
 
                 // Quota Deduction
-                await deductWorkspaceQuota(workspace);
+                await deductWorkspaceQuota(workspace, account.instagram_user_id);
 
                 // Update Automation dm_sent_count
                 await supabase.from('automations').update({
@@ -740,7 +796,8 @@ export async function POST(req: Request) {
                       text: messageText,
                       action: 'follow_gate',
                       message: successMessage,
-                      url: successUrl
+                      url: actionLinks[0]?.url || '',
+                      links: actionLinks
                     },
                     occurred_at: new Date().toISOString()
                   }
@@ -789,15 +846,14 @@ export async function POST(req: Request) {
                 }).eq('id', dbContact.id);
 
                 const successMessage = `${matchedAut.action_config?.message || 'Click below for complete details'}`.trim();
-                const successUrl = matchedAut.action_config?.url || '';
+                const actionLinks = matchedAut.action_config?.links || (matchedAut.action_config?.url ? [{ url: matchedAut.action_config.url, label: matchedAut.name || 'Download Now' }] : []);
 
-                if (successUrl) {
-                  await sendInstagramLinkButton(
+                if (actionLinks.length > 0) {
+                  await sendInstagramLinkButtons(
                     instagramAccountId,
                     senderId,
                     successMessage,
-                    successUrl,
-                    matchedAut.name || 'Download Now',
+                    actionLinks,
                     account.access_token
                   );
                 } else {
@@ -805,7 +861,7 @@ export async function POST(req: Request) {
                 }
 
                 // Quota Deduction
-                await deductWorkspaceQuota(workspace);
+                await deductWorkspaceQuota(workspace, account.instagram_user_id);
 
                 // Update Automation dm_sent_count
                 await supabase.from('automations').update({
@@ -833,7 +889,8 @@ export async function POST(req: Request) {
                       text: messageText,
                       action: matchedAut.action_type,
                       message: successMessage,
-                      url: successUrl
+                      url: actionLinks[0]?.url || '',
+                      links: actionLinks
                     },
                     occurred_at: new Date().toISOString()
                   }
@@ -1013,7 +1070,81 @@ async function sendInstagramLinkButton(
   return res;
 }
 
-async function deductWorkspaceQuota(workspace: any) {
+async function sendInstagramLinkButtons(
+  instagramAccountId: string,
+  recipientId: string,
+  title: string,
+  links: { url: string; label: string }[],
+  accessToken: string
+) {
+  if (links.length === 0) {
+    return sendInstagramDM(instagramAccountId, recipientId, title, accessToken);
+  }
+
+  // Build elements for the generic template
+  // Each element can hold at most 3 buttons.
+  const elements = [];
+  const chunkSize = 3;
+  
+  for (let i = 0; i < links.length; i += chunkSize) {
+    const chunk = links.slice(i, i + chunkSize);
+    elements.push({
+      title: i === 0 ? title : `${title} (cont.)`,
+      buttons: chunk.map((link, idx) => ({
+        type: 'web_url',
+        url: link.url,
+        title: (link.label || `Visit Link ${i + idx + 1}`).substring(0, 20)
+      }))
+    });
+  }
+
+  const res = await fetch(`https://graph.instagram.com/v20.0/${instagramAccountId}/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`
+    },
+    body: JSON.stringify({
+      recipient: { id: recipientId },
+      message: {
+        attachment: {
+          type: 'template',
+          payload: {
+            template_type: 'generic',
+            elements: elements
+          }
+        }
+      }
+    })
+  });
+
+  if (!res.ok) {
+    console.error('Failed to send DM with multiple link buttons:', await res.text());
+    // Fallback to text link list
+    const textLinks = links.map(l => `${l.label || 'Link'}: ${l.url}`).join('\n');
+    return sendInstagramDM(instagramAccountId, recipientId, `${title}\n\n${textLinks}`, accessToken);
+  }
+  return res;
+}
+
+async function checkGlobalQuotaExceeded(instagramUserId: string): Promise<boolean> {
+  const { data: globalUsage } = await supabase
+    .from('instagram_global_usage')
+    .select('*')
+    .eq('instagram_user_id', instagramUserId)
+    .maybeSingle();
+
+  if (globalUsage) {
+    const resetDate = new Date(globalUsage.reset_date);
+    const thisMonthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    if (resetDate >= thisMonthStart && globalUsage.dm_sent_count >= 500) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function deductWorkspaceQuota(workspace: any, instagramUserId: string) {
   let newDMSentCurrent = workspace.dm_sent_current_period;
   let newAddonCredits = workspace.dm_addon_credits;
 
@@ -1027,4 +1158,39 @@ async function deductWorkspaceQuota(workspace: any) {
     dm_sent_current_period: newDMSentCurrent,
     dm_addon_credits: newAddonCredits
   }).eq('id', workspace.id);
+
+  // Update global usage
+  const { data: globalUsage } = await supabase
+    .from('instagram_global_usage')
+    .select('*')
+    .eq('instagram_user_id', instagramUserId)
+    .maybeSingle();
+
+  const thisMonthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
+  if (globalUsage) {
+    const resetDate = new Date(globalUsage.reset_date);
+    if (resetDate < thisMonthStart) {
+      // It's a new month, reset the counter
+      await supabase.from('instagram_global_usage').update({
+        dm_sent_count: 1,
+        reset_date: thisMonthStart.toISOString(),
+        updated_at: new Date().toISOString()
+      }).eq('instagram_user_id', instagramUserId);
+    } else {
+      // Increment
+      await supabase.from('instagram_global_usage').update({
+        dm_sent_count: globalUsage.dm_sent_count + 1,
+        updated_at: new Date().toISOString()
+      }).eq('instagram_user_id', instagramUserId);
+    }
+  } else {
+    // Insert new global usage row
+    await supabase.from('instagram_global_usage').insert({
+      instagram_user_id: instagramUserId,
+      dm_sent_count: 1,
+      reset_date: thisMonthStart.toISOString(),
+      updated_at: new Date().toISOString()
+    });
+  }
 }

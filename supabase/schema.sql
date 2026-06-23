@@ -141,3 +141,14 @@ ALTER TABLE automations DISABLE ROW LEVEL SECURITY;
 ALTER TABLE automation_events DISABLE ROW LEVEL SECURITY;
 ALTER TABLE contacts DISABLE ROW LEVEL SECURITY;
 ALTER TABLE rewind_logs DISABLE ROW LEVEL SECURITY;
+
+-- Global Instagram account quota usage tracking table
+CREATE TABLE IF NOT EXISTS instagram_global_usage (
+    instagram_user_id TEXT PRIMARY KEY,
+    dm_sent_count     INT NOT NULL DEFAULT 0,
+    reset_date        TIMESTAMPTZ NOT NULL DEFAULT date_trunc('month', NOW()),
+    updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE instagram_global_usage DISABLE ROW LEVEL SECURITY;
+

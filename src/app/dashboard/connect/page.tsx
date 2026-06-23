@@ -11,6 +11,8 @@ import {
   CheckCircle
 } from 'lucide-react';
 
+import { getAccountLimitForPlan } from '@/lib/db';
+
 export default function ConnectPage() {
   const { 
     user, 
@@ -18,10 +20,12 @@ export default function ConnectPage() {
     accounts, 
     linkRealInstagramAccount,
     addInstagramAccount,
+    removeInstagramAccount,
     signOut 
   } = useApp();
 
   const router = useRouter();
+  const accountLimit = workspace ? getAccountLimitForPlan(workspace.plan) : 1;
   const [linkError, setLinkError] = useState('');
   const [usernameInput, setUsernameInput] = useState('');
   const [isSearching, setIsSearching] = useState(false);
@@ -377,6 +381,43 @@ export default function ConnectPage() {
             
 
           </div>
+
+          {accounts.length > 0 && (
+            <div className="w-full bg-white border border-zinc-200 shadow-xl rounded-2xl p-6 flex flex-col gap-4 text-zinc-950">
+              <h2 className="text-sm font-bold text-zinc-800 uppercase tracking-wider text-left border-b border-zinc-150 pb-2">
+                Connected Accounts ({accounts.length}/{accountLimit})
+              </h2>
+              <div className="flex flex-col gap-3">
+                {accounts.map(acc => (
+                  <div key={acc.id} className="flex items-center justify-between p-3 rounded-xl border border-zinc-100 hover:bg-zinc-50 transition bg-zinc-50/20">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      {acc.profile_picture_url ? (
+                        <img src={acc.profile_picture_url} alt={acc.username} className="w-10 h-10 rounded-full object-cover border border-zinc-200 shrink-0" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 shrink-0" />
+                      )}
+                      <div className="flex flex-col text-left overflow-hidden">
+                        <span className="text-sm font-extrabold text-zinc-900 truncate">@{acc.username}</span>
+                        <span className="text-[10px] text-zinc-450 font-semibold mt-0.5">
+                          {acc.followers_count?.toLocaleString() ?? 0} followers
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Are you sure you want to disconnect @${acc.username}? This will pause all associated automations.`)) {
+                          removeInstagramAccount(acc.id);
+                        }
+                      }}
+                      className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 text-xs font-bold rounded-xl border border-red-150 transition shadow-sm shrink-0"
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Secure indicator */}
           <div className="flex items-center gap-1.5 text-zinc-400 text-xs font-semibold">
