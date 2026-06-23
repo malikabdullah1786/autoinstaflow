@@ -248,7 +248,7 @@ export async function POST(req: Request) {
 
             // Send private reply via Meta Graph API (notifying the user on the comment thread)
             const commentReplyText = isFollowPrompt
-              ? (matchedAut.action_config?.message || `Nearly there! The link is especially for my followers ✨\n\nRight after you follow me, click the button below so I can verify and send you the link! 🎉`)
+              ? finalMessage
               : (isEmailPrompt ? `Please reply to this DM with your email address to receive your link! 📩` : finalMessage);
 
             let messageBody: any = {};
