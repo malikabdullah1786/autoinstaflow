@@ -1032,6 +1032,12 @@ async function sendInstagramLinkButton(
   buttonTitle: string,
   accessToken: string
 ) {
+  // 1. Send the main text message first to preserve formatting, newlines, and length
+  await sendInstagramDM(instagramAccountId, recipientId, title, accessToken);
+
+  // 2. Send the button card with a clean, short title
+  const cleanCardTitle = "Tap below to open:";
+  
   const res = await fetch(`https://graph.instagram.com/v20.0/${instagramAccountId}/messages`, {
     method: 'POST',
     headers: {
@@ -1047,12 +1053,12 @@ async function sendInstagramLinkButton(
             template_type: 'generic',
             elements: [
               {
-                title: title,
+                title: cleanCardTitle,
                 buttons: [
                   {
                     type: 'web_url',
                     url: buttonUrl,
-                    title: buttonTitle.substring(0, 20)
+                    title: buttonTitle.trim().substring(0, 20) || 'Open Link'
                   }
                 ]
               }
@@ -1062,10 +1068,11 @@ async function sendInstagramLinkButton(
       }
     })
   });
+
   if (!res.ok) {
     console.error('Failed to send Link Button template:', await res.text());
-    // Fallback to text link
-    return sendInstagramDM(instagramAccountId, recipientId, `${title} ${buttonUrl}`, accessToken);
+    // Fallback if template fails (e.g. Meta API restriction)
+    return sendInstagramDM(instagramAccountId, recipientId, `${buttonTitle}: ${buttonUrl}`, accessToken);
   }
   return res;
 }
@@ -1081,19 +1088,23 @@ async function sendInstagramLinkButtons(
     return sendInstagramDM(instagramAccountId, recipientId, title, accessToken);
   }
 
-  // Build elements for the generic template
+  // 1. Send the main text message first to preserve formatting, newlines, and length
+  await sendInstagramDM(instagramAccountId, recipientId, title, accessToken);
+
+  // 2. Build elements for the generic template
   // Each element can hold at most 3 buttons.
   const elements = [];
   const chunkSize = 3;
+  const cleanCardTitle = "Tap below to open:";
   
   for (let i = 0; i < links.length; i += chunkSize) {
     const chunk = links.slice(i, i + chunkSize);
     elements.push({
-      title: i === 0 ? title : `${title} (cont.)`,
+      title: i === 0 ? cleanCardTitle : `${cleanCardTitle} (cont.)`,
       buttons: chunk.map((link, idx) => ({
         type: 'web_url',
         url: link.url,
-        title: (link.label || `Visit Link ${i + idx + 1}`).substring(0, 20)
+        title: (link.label || `Open Link ${i + idx + 1}`).trim().substring(0, 20)
       }))
     });
   }
@@ -1120,9 +1131,9 @@ async function sendInstagramLinkButtons(
 
   if (!res.ok) {
     console.error('Failed to send DM with multiple link buttons:', await res.text());
-    // Fallback to text link list
+    // Fallback if template fails
     const textLinks = links.map(l => `${l.label || 'Link'}: ${l.url}`).join('\n');
-    return sendInstagramDM(instagramAccountId, recipientId, `${title}\n\n${textLinks}`, accessToken);
+    return sendInstagramDM(instagramAccountId, recipientId, textLinks, accessToken);
   }
   return res;
 }
