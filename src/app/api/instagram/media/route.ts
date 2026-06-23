@@ -80,19 +80,29 @@ export async function GET(req: Request) {
       commentsList: [] // Comments will be filled when simulated or fetched
     }));
 
-    const stories = (storiesData.data || []).map((item: any) => ({
-      id: item.id,
-      caption: item.caption || 'Active Story',
-      type: 'story',
-      mediaUrl: item.media_url || '',
-      permalink: item.permalink || '',
-      thumbnailUrl: item.thumbnail_url || item.media_url || '',
-      thumbnail: item.thumbnail_url || item.media_url || '',
-      commentsCount: 0,
-      likeCount: 0,
-      publishedAt: item.timestamp || new Date().toISOString(),
-      commentsList: []
-    }));
+    const stories = (storiesData.data || []).map((item: any) => {
+      const pubDate = item.timestamp ? new Date(item.timestamp) : new Date();
+      const formattedTime = pubDate.toLocaleString('en-US', { 
+        month: 'short', 
+        day: 'numeric', 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: true 
+      });
+      return {
+        id: item.id,
+        caption: item.caption || `Story published at ${formattedTime}`,
+        type: 'story',
+        mediaUrl: item.media_url || '',
+        permalink: item.permalink || '',
+        thumbnailUrl: item.thumbnail_url || item.media_url || '',
+        thumbnail: item.thumbnail_url || item.media_url || '',
+        commentsCount: 0,
+        likeCount: 0,
+        publishedAt: item.timestamp || new Date().toISOString(),
+        commentsList: []
+      };
+    });
 
     return NextResponse.json({
       success: true,

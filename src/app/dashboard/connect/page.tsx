@@ -113,6 +113,7 @@ export default function ConnectPage() {
               success: true
             });
             window.history.replaceState({}, document.title, window.location.pathname);
+            router.push('/dashboard/home');
           } else {
             setOauthStatus({
               loading: false,
@@ -305,6 +306,28 @@ export default function ConnectPage() {
                 )}
               </button>
             </form>
+
+            {!foundAccount && (
+              <>
+                <div className="relative flex py-2 items-center">
+                  <div className="flex-grow border-t border-zinc-200"></div>
+                  <span className="flex-shrink mx-4 text-zinc-400 text-xs font-semibold">Or Connect Directly</span>
+                  <div className="flex-grow border-t border-zinc-200"></div>
+                </div>
+
+                <button
+                  onClick={handleInstagramLogin}
+                  className="w-full py-3.5 border border-zinc-200 hover:bg-zinc-50 rounded-xl text-zinc-700 text-sm font-bold transition shadow-sm flex items-center justify-center gap-2"
+                >
+                  <svg className="w-4 h-4 text-pink-500" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+                    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+                    <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+                  </svg>
+                  <span>Connect with Meta OAuth</span>
+                </button>
+              </>
+            )}
 
             {foundAccount && (
               <div className="flex flex-col gap-5 mt-2">

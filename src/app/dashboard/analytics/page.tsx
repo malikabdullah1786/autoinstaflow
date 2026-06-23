@@ -186,9 +186,6 @@ export default function AnalyticsPage() {
   const { workspace, automations, events, upgradePlan } = useApp();
   const [activeTab, setActiveTab] = useState<'overview' | 'audience'>('overview');
   
-  // Set demo mode default based on whether they have real events
-  const [useDemoMode, setUseDemoMode] = useState(events.length === 0);
-
   const isFreePlan = workspace?.plan === 'free';
 
   // Helper to generate dynamic mock events spanning the last 7 days
@@ -268,7 +265,7 @@ export default function AnalyticsPage() {
     return list;
   }, [automations]);
 
-  const activeEvents = useDemoMode ? mockEvents : events;
+  const activeEvents = events;
 
   // Calculate metrics
   const totalSent = activeEvents.filter(e => e.event_type === 'dm_sent').length;
@@ -366,50 +363,13 @@ export default function AnalyticsPage() {
 
   return (
     <div className="flex flex-col gap-6 animate-fadeIn">
-      {/* Header with Title and Mode Toggles */}
+      {/* Header with Title */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-zinc-100 pb-5">
         <div>
           <h1 className="text-2xl font-extrabold text-zinc-900 tracking-tight">Analytics</h1>
-          <p className="text-xs text-zinc-500">Track the click rates, keywords performance, and subscriber conversions of your bots.</p>
-        </div>
-        
-        {/* Toggle Mode Control */}
-        <div className="flex items-center gap-2 bg-zinc-100 p-1.5 rounded-lg border border-zinc-200 shadow-sm">
-          <button
-            onClick={() => setUseDemoMode(false)}
-            className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${
-              !useDemoMode
-                ? 'bg-white text-zinc-900 shadow-sm border border-zinc-200'
-                : 'text-zinc-500 hover:text-zinc-800'
-            }`}
-          >
-            Live Data
-          </button>
-          <button
-            onClick={() => setUseDemoMode(true)}
-            className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all flex items-center gap-1 ${
-              useDemoMode
-                ? 'bg-purple-600 text-white shadow-sm'
-                : 'text-zinc-500 hover:text-zinc-800'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5" /> Demo Mode
-          </button>
+          <p className="text-xs text-zinc-550">Track the click rates, keywords performance, and subscriber conversions of your bots.</p>
         </div>
       </div>
-
-      {/* Info Warning if Live is Empty and Demo is Active */}
-      {useDemoMode && events.length === 0 && (
-        <div className="p-3.5 rounded-xl bg-purple-50/80 border border-purple-100 flex items-start gap-3 shadow-inner">
-          <AlertCircle className="w-4 h-4 text-purple-650 shrink-0 mt-0.5" />
-          <div className="flex flex-col gap-0.5">
-            <p className="text-[11px] text-purple-950 font-bold">Showing Demo Data</p>
-            <p className="text-[10px] text-purple-700 leading-normal">
-              Your workspace doesn't have any real events logged yet. Connect an Instagram account and test an automation keyword to start populating live analytics.
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* Tabs */}
       <div className="flex border-b border-zinc-200">

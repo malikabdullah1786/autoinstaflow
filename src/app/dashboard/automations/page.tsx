@@ -9,7 +9,6 @@ import {
   Trash2, 
   Eye, 
   AlertTriangle, 
-  Search, 
   Plus, 
   Sparkles,
   MessageSquare
@@ -26,7 +25,6 @@ export default function AutomationsPage() {
     activeAccountPosts
   } = useApp();
 
-  const [searchQuery, setSearchQuery] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const activeAccount = accounts.find(a => a.id === activeAccountId);
@@ -34,11 +32,7 @@ export default function AutomationsPage() {
   // Filter automations for active account
   const accountAutomations = automations.filter(a => a.instagram_account_id === activeAccountId);
 
-  // Search filter
-  const filteredAutomations = accountAutomations.filter(aut => 
-    aut.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    aut.trigger_type.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredAutomations = accountAutomations;
 
   // Calculate warning banner:
   // "If any Instagram post published within the last 7 days has no associated Automation, 
@@ -104,18 +98,6 @@ export default function AutomationsPage() {
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-3 max-w-md w-full">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                placeholder="Search automations..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full glass-input pl-9 text-xs"
-              />
-            </div>
-          </div>
 
           <div className="glass-panel overflow-hidden">
             <div className="overflow-x-auto">

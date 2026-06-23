@@ -22,7 +22,9 @@ import {
   MoreVertical,
   Lock,
   RefreshCw,
-  Heart
+  Heart,
+  Edit2,
+  Trash2
 } from 'lucide-react';
 import { getAccountLimitForPlan } from '@/lib/db';
 
@@ -34,6 +36,7 @@ export default function HomeDashboard() {
     activeAccountId, 
     automations, 
     events, 
+    contacts,
     simulateInstagramInteraction,
     toggleAutomationStatus,
     deleteAutomation
@@ -49,10 +52,42 @@ export default function HomeDashboard() {
   const [simOutcome, setSimOutcome] = useState<{ success: boolean; outcome: string; details?: string } | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
   const activeAccount = accounts.find(a => a.id === activeAccountId);
   const accountAutomations = automations.filter(a => a.instagram_account_id === activeAccountId);
   const liveAutomations = accountAutomations.filter(a => a.status === 'live');
+
+  // Peak Posting Hours calculations (from events)
+  const hourCounts = [0, 0, 0, 0]; // Night (12am-6am), Morning (6am-12pm), Afternoon (12pm-6pm), Evening (6pm-12am)
+  events.forEach(evt => {
+    const date = new Date(evt.occurred_at);
+    const hour = date.getHours();
+    if (hour >= 0 && hour < 6) hourCounts[0]++;
+    else if (hour >= 6 && hour < 12) hourCounts[1]++;
+    else if (hour >= 12 && hour < 18) hourCounts[2]++;
+    else hourCounts[3]++;
+  });
+  const totalHourEvents = hourCounts.reduce((a, b) => a + b, 0);
+
+  // Top Email Domains calculations (from contacts)
+  const domainCounts: Record<string, number> = {};
+  let totalContactsWithEmail = 0;
+  contacts.forEach(c => {
+    if (c.email && c.email.includes('@')) {
+      const domain = c.email.split('@')[1].toLowerCase();
+      domainCounts[domain] = (domainCounts[domain] || 0) + 1;
+      totalContactsWithEmail++;
+    }
+  });
+
+  const sortedDomains = Object.entries(domainCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([domain, count]) => ({
+      domain: domain.charAt(0).toUpperCase() + domain.slice(1),
+      percentage: Math.round((count / totalContactsWithEmail) * 100)
+    }));
 
   const handleSimulate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -544,9 +579,44 @@ export default function HomeDashboard() {
                                     </>
                                   )}
                                 </button>
-                                <button className="text-zinc-400 hover:text-zinc-700 p-1">
-                                  <MoreVertical className="w-4 h-4" />
-                                </button>
+                                <div className="relative">
+                                  <button 
+                                    onClick={() => setActiveMenuId(activeMenuId === auto.id ? null : auto.id)}
+                                    className="text-zinc-400 hover:text-zinc-700 p-1 rounded-lg hover:bg-zinc-50 transition"
+                                  >
+                                    <MoreVertical className="w-4 h-4" />
+                                  </button>
+
+                                  {activeMenuId === auto.id && (
+                                    <>
+                                      {/* Click outside overlay for this specific menu */}
+                                      <div 
+                                        className="fixed inset-0 z-10" 
+                                        onClick={() => setActiveMenuId(null)}
+                                      />
+                                      <div className="absolute right-0 mt-1 w-28 bg-white border border-zinc-250 rounded-xl shadow-lg z-25 p-1 flex flex-col gap-0.5 animate-fadeIn">
+                                        <Link
+                                          href={`/dashboard/automations/${auto.id}`}
+                                          className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold text-zinc-700 hover:text-purple-700 hover:bg-purple-50/50 rounded-lg transition text-left"
+                                          onClick={() => setActiveMenuId(null)}
+                                        >
+                                          <Edit2 className="w-3 h-3" />
+                                          Edit
+                                        </Link>
+                                        <button
+                                          onClick={() => {
+                                            setDeleteConfirmId(auto.id);
+                                            setActiveMenuId(null);
+                                          }}
+                                          className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold text-red-650 hover:bg-red-50 rounded-lg transition text-left w-full"
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                          Delete
+                                        </button>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
                               </div>
                             </td>
                           </tr>
@@ -563,36 +633,76 @@ export default function HomeDashboard() {
           <div className="bg-white border border-zinc-200 rounded-2xl p-6 relative overflow-hidden shadow-sm">
             <div className="flex flex-col gap-0.5 mb-6">
               <h3 className="text-sm font-extrabold text-zinc-950">Know your audience</h3>
-              <span className="text-xs text-zinc-450">Best hours to post and where your followers live</span>
+              <span className="text-xs text-zinc-450">Peak interaction periods and top subscriber email domains</span>
             </div>
 
             {/* Visual representation of dashboard charts */}
             <div className="grid grid-cols-2 gap-4">
               <div className="h-28 bg-zinc-50 rounded-xl p-3 border border-zinc-200 flex flex-col justify-between">
-                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Peak Posting Hours</span>
-                <div className="flex items-end gap-1.5 h-12 mt-1">
-                  <div className="w-full h-8 bg-purple-100 rounded-sm" />
-                  <div className="w-full h-12 bg-purple-500 rounded-sm" />
-                  <div className="w-full h-6 bg-purple-200 rounded-sm" />
-                  <div className="w-full h-10 bg-purple-400 rounded-sm" />
-                </div>
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Peak Interactions</span>
+                {totalHourEvents > 0 ? (
+                  <div className="flex items-end gap-1.5 h-12 mt-1">
+                    {/* Night */}
+                    <div className="flex-1 flex flex-col items-center gap-1 group">
+                      <div 
+                        style={{ height: `${Math.max(4, Math.round((hourCounts[0] / Math.max(...hourCounts)) * 40))}px` }} 
+                        className="w-full bg-purple-250 rounded-sm group-hover:bg-purple-450 transition-all duration-200" 
+                      />
+                      <span className="text-[8px] font-medium text-zinc-400">Night</span>
+                    </div>
+                    {/* Morning */}
+                    <div className="flex-1 flex flex-col items-center gap-1 group">
+                      <div 
+                        style={{ height: `${Math.max(4, Math.round((hourCounts[1] / Math.max(...hourCounts)) * 40))}px` }} 
+                        className="w-full bg-purple-250 rounded-sm group-hover:bg-purple-450 transition-all duration-200" 
+                      />
+                      <span className="text-[8px] font-medium text-zinc-400">AM</span>
+                    </div>
+                    {/* Afternoon */}
+                    <div className="flex-1 flex flex-col items-center gap-1 group">
+                      <div 
+                        style={{ height: `${Math.max(4, Math.round((hourCounts[2] / Math.max(...hourCounts)) * 40))}px` }} 
+                        className="w-full bg-purple-500 rounded-sm group-hover:bg-purple-650 transition-all duration-200" 
+                      />
+                      <span className="text-[8px] font-medium text-zinc-450 font-bold">PM</span>
+                    </div>
+                    {/* Evening */}
+                    <div className="flex-1 flex flex-col items-center gap-1 group">
+                      <div 
+                        style={{ height: `${Math.max(4, Math.round((hourCounts[3] / Math.max(...hourCounts)) * 40))}px` }} 
+                        className="w-full bg-purple-300 rounded-sm group-hover:bg-purple-500 transition-all duration-200" 
+                      />
+                      <span className="text-[8px] font-medium text-zinc-400">Eve</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex-1 flex items-center justify-center text-center p-2">
+                    <span className="text-[9px] text-zinc-400 italic">No interaction logs recorded yet</span>
+                  </div>
+                )}
               </div>
+
               <div className="h-28 bg-zinc-50 rounded-xl p-3 border border-zinc-200 flex flex-col justify-between">
-                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Top Cities</span>
-                <div className="flex flex-col gap-2 mt-1 text-[10px] font-bold text-zinc-700">
-                  <div className="flex justify-between items-center">
-                    <span>New York</span>
-                    <span className="text-zinc-500">42%</span>
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Top Lead Domains</span>
+                {sortedDomains.length > 0 ? (
+                  <div className="flex flex-col gap-1.5 mt-1 text-[10px] font-bold text-zinc-700">
+                    {sortedDomains.map((item, idx) => (
+                      <div key={idx} className="flex justify-between items-center">
+                        <span className="truncate max-w-[70px] text-zinc-650 font-semibold">{item.domain}</span>
+                        <div className="flex items-center gap-1.5 flex-1 justify-end">
+                          <div className="w-12 h-1 bg-zinc-200 rounded-full overflow-hidden">
+                            <div style={{ width: `${item.percentage}%` }} className="h-full bg-purple-500" />
+                          </div>
+                          <span className="text-zinc-500 w-6 text-right">{item.percentage}%</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span>London</span>
-                    <span className="text-zinc-500">28%</span>
+                ) : (
+                  <div className="flex-1 flex items-center justify-center text-center p-2">
+                    <span className="text-[9px] text-zinc-400 italic">No email leads captured yet</span>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span>Tokyo</span>
-                    <span className="text-zinc-500">15%</span>
-                  </div>
-                </div>
+                )}
               </div>
             </div>
           </div>

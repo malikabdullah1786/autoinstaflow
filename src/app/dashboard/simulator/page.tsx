@@ -89,7 +89,7 @@ export default function SimulatorPage() {
         if (a.status !== 'live') return false;
         if (a.trigger_type !== simTrigger) return false;
 
-        if (simTrigger === 'comment') {
+        if (simTrigger === 'comment' || simTrigger === 'story_reply') {
           const matchesPost = !a.trigger_config.post_id || a.trigger_config.post_id === simPostId;
           return matchesPost;
         }
