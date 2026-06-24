@@ -969,9 +969,9 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6 pt-8 border-t border-zinc-200/80 flex flex-col sm:flex-row items-center justify-between gap-4 text-zinc-500 text-xs font-semibold">
           <div>&copy; {new Date().getFullYear()} Auto Insta Flow. All rights reserved.</div>
           <div className="flex items-center gap-6">
-            <a href="#" className="hover:text-purple-650 transition">Terms of Service</a>
-            <a href="#" className="hover:text-purple-650 transition">Privacy Policy</a>
-            <Link href="/dashboard/support" className="hover:text-purple-650 transition">Support</Link>
+            <Link href="/terms" className="hover:text-purple-650 transition">Terms of Service</Link>
+            <Link href="/privacy" className="hover:text-purple-650 transition">Privacy Policy</Link>
+            <Link href="/support" className="hover:text-purple-650 transition">Support</Link>
           </div>
         </div>
       </footer>
