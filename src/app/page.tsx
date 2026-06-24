@@ -218,6 +218,18 @@ export default function LandingPage() {
 
               {resourcesOpen && (
                 <div className="absolute top-full left-0 mt-3 bg-white border border-zinc-200 rounded-2xl p-4 shadow-[0_15px_45px_rgba(0,0,0,0.08)] flex flex-col gap-2 min-w-[220px] z-50 backdrop-blur-md">
+                  <Link 
+                    href="/docs" 
+                    className="w-full text-left px-3 py-2 rounded-lg text-xs text-zinc-550 hover:text-purple-700 hover:bg-purple-50/50 transition font-bold"
+                  >
+                    Documentation
+                  </Link>
+                  <Link 
+                    href="/api-reference" 
+                    className="w-full text-left px-3 py-2 rounded-lg text-xs text-zinc-550 hover:text-purple-700 hover:bg-purple-50/50 transition font-bold"
+                  >
+                    Developer API Reference
+                  </Link>
                   <button 
                     onClick={() => handleScroll('faq')}
                     className="w-full text-left px-3 py-2 rounded-lg text-xs text-zinc-550 hover:text-purple-700 hover:bg-purple-50/50 transition font-bold"
@@ -946,9 +958,10 @@ export default function LandingPage() {
 
           <div className="flex flex-col gap-3">
             <span className="text-zinc-900 text-xs font-bold tracking-wider uppercase">Resources</span>
+            <Link href="/docs" className="text-zinc-500 text-xs hover:text-purple-650 transition">Documentation</Link>
+            <Link href="/api-reference" className="text-zinc-500 text-xs hover:text-purple-650 transition">API Reference</Link>
             <a href="#pricing" className="text-zinc-500 text-xs hover:text-purple-650 transition">Pricing Plans</a>
             <a href="#faq" className="text-zinc-500 text-xs hover:text-purple-650 transition">FAQ Documentation</a>
-            <a href="#testimonials" className="text-zinc-500 text-xs hover:text-purple-650 transition">Customer Stories</a>
           </div>
 
         </div>

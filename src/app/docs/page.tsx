@@ -65,6 +65,43 @@ export default function DocsPage() {
     }
   ];
 
+  React.useEffect(() => {
+    const observerOptions = {
+      root: null,
+      rootMargin: '-20% 0px -60% 0px',
+      threshold: 0
+    };
+
+    const handleIntersect = (entries: IntersectionObserverEntry[]) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          setActiveSection(entry.target.id);
+        }
+      });
+    };
+
+    const observer = new IntersectionObserver(handleIntersect, observerOptions);
+
+    const targetIds = [
+      'introduction', 'installation', 'linking',
+      'triggers', 'actions', 'templates',
+      'follow-gate', 'email-gate',
+      'contacts', 'analytics-tracking', 'limits-billing'
+    ];
+
+    targetIds.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+
+    return () => {
+      targetIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) observer.unobserve(el);
+      });
+    };
+  }, []);
+
   const handleScrollTo = (id: string) => {
     setActiveSection(id);
     const element = document.getElementById(id);
@@ -81,31 +118,49 @@ export default function DocsPage() {
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-50/30 rounded-full blur-[120px] pointer-events-none" />
 
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-zinc-200 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-2 group">
-            <span className="font-extrabold text-lg tracking-tight text-zinc-900 flex items-center gap-1">
-              Auto Insta Flow <span className="text-purple-650 font-black leading-none text-xl">+</span>
+      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-zinc-200 px-4 sm:px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Link href="/" className="flex items-center gap-2 group shrink-0">
+            <span className="font-extrabold text-sm sm:text-lg tracking-tight text-zinc-900 flex items-center gap-1">
+              Auto Insta Flow <span className="text-purple-650 font-black leading-none text-base sm:text-xl">+</span>
             </span>
           </Link>
-          <span className="h-4 w-px bg-zinc-200" />
-          <span className="text-xs font-semibold text-zinc-500 bg-zinc-100 px-2.5 py-1 rounded-full border border-zinc-200">
-            Documentation Portal
+          <span className="h-4 w-px bg-zinc-200 hidden xs:inline" />
+          <span className="text-[10px] font-semibold text-zinc-500 bg-zinc-100 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full border border-zinc-200 hidden xs:inline truncate max-w-[120px] sm:max-w-none">
+            Docs
           </span>
         </div>
 
-        <div className="flex items-center gap-4">
-          <Link href="/api-reference" className="text-xs font-semibold text-zinc-600 hover:text-zinc-900 transition flex items-center gap-1.5">
-            <Terminal className="w-3.5 h-3.5" /> API Reference
+        <div className="flex items-center gap-3 sm:gap-4 shrink-0">
+          <Link href="/api-reference" className="text-xs font-semibold text-zinc-650 hover:text-zinc-900 transition flex items-center gap-1">
+            <Terminal className="w-3.5 h-3.5" /> <span className="hidden sm:inline">API Reference</span>
           </Link>
-          <Link href="/dashboard/support" className="text-xs font-semibold text-zinc-600 hover:text-zinc-900 transition flex items-center gap-1.5">
-            <HelpCircle className="w-3.5 h-3.5" /> Support
+          <Link href="/dashboard/support" className="text-xs font-semibold text-zinc-650 hover:text-zinc-900 transition flex items-center gap-1">
+            <HelpCircle className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Support</span>
           </Link>
-          <Link href="/dashboard/home" className="text-xs font-bold bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-800 transition flex items-center gap-1">
-            <ArrowLeft className="w-3.5 h-3.5" /> Dashboard
+          <Link href="/dashboard/home" className="text-xs font-bold bg-zinc-900 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl hover:bg-zinc-800 transition flex items-center gap-1 shrink-0">
+            <ArrowLeft className="w-3.5 h-3.5" /> <span className="hidden xs:inline">Dashboard</span>
           </Link>
         </div>
       </header>
+
+      {/* Mobile Sticky Section Selector */}
+      <div className="sticky top-[57px] sm:top-[73px] z-35 bg-white/95 backdrop-blur-md border-b border-zinc-200 px-4 py-2.5 md:hidden flex gap-2 overflow-x-auto scrollbar-none items-center shadow-sm">
+        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider shrink-0 mr-1">Sections:</span>
+        {sections.flatMap(s => s.items).map(item => (
+          <button
+            key={item.id}
+            onClick={() => handleScrollTo(item.id)}
+            className={`px-3 py-1 rounded-full text-xs font-bold transition whitespace-nowrap shrink-0 border ${
+              activeSection === item.id 
+                ? 'bg-purple-650 border-purple-600 text-white shadow-sm'
+                : 'bg-zinc-50 border-zinc-200 text-zinc-600 hover:bg-zinc-100'
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
 
       {/* Main Container */}
       <div className="max-w-7xl mx-auto px-6 py-10 flex gap-8">

@@ -249,44 +249,143 @@ export default function HomeDashboard() {
   const displayedPosts = realPosts;
 
   // Dynamic Metrics calculations based on actual db events
-  const totalDMsSentToday = events.filter(
-    ev => ev.workspace_id === workspace?.id && 
-          ev.event_type === 'dm_sent' && 
-          new Date(ev.occurred_at).toDateString() === new Date().toDateString()
-  ).length;
+  const calculateMetric = (eventType: string) => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
 
-  const totalLeadsCaptured = events.filter(
-    ev => ev.workspace_id === workspace?.id && ev.event_type === 'email_collected'
-  ).length;
+    const todayEvents = events.filter(ev => {
+      if (ev.workspace_id !== workspace?.id) return false;
+      if (ev.event_type !== eventType) return false;
+      const d = new Date(ev.occurred_at);
+      return d >= todayStart && d <= todayEnd;
+    });
 
-  // Stats matching screenshot values or database values
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    const pastEvents = events.filter(ev => {
+      if (ev.workspace_id !== workspace?.id) return false;
+      if (ev.event_type !== eventType) return false;
+      const d = new Date(ev.occurred_at);
+      return d >= sevenDaysAgo && d < todayStart;
+    });
+
+    const todayCount = todayEvents.length;
+    const dailyAvg = pastEvents.length / 7;
+
+    let changeText = '0%';
+    let isPositive = true;
+
+    if (dailyAvg === 0) {
+      if (todayCount > 0) {
+        changeText = '+100%';
+        isPositive = true;
+      } else {
+        changeText = '0%';
+        isPositive = true;
+      }
+    } else {
+      const pct = ((todayCount - dailyAvg) / dailyAvg) * 100;
+      isPositive = pct >= 0;
+      changeText = `${pct >= 0 ? '+' : ''}${pct.toFixed(0)}%`;
+    }
+
+    return {
+      value: todayCount,
+      change: `${changeText} vs last 7 days`,
+      isPositive
+    };
+  };
+
+  const dmsMetric = calculateMetric('dm_sent');
+  const clicksMetric = calculateMetric('link_clicked');
+  const leadsMetric = calculateMetric('email_collected');
+
+  const followersMetric = (() => {
+    const currentFollowers = activeAccount?.followers_count || 0;
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const todayNewFollowers = events.filter(ev => {
+      if (ev.workspace_id !== workspace?.id) return false;
+      if (ev.event_type === 'follow_verified') {
+        const d = new Date(ev.occurred_at);
+        return d >= todayStart && d <= todayEnd;
+      }
+      return false;
+    }).length;
+
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    const pastNewFollowers = events.filter(ev => {
+      if (ev.workspace_id !== workspace?.id) return false;
+      if (ev.event_type === 'follow_verified') {
+        const d = new Date(ev.occurred_at);
+        return d >= sevenDaysAgo && d < todayStart;
+      }
+      return false;
+    }).length;
+
+    const dailyAvg = pastNewFollowers / 7;
+    let changeText = '0%';
+    let isPositive = true;
+
+    if (dailyAvg === 0) {
+      if (todayNewFollowers > 0) {
+        changeText = `+${todayNewFollowers} new`;
+        isPositive = true;
+      } else {
+        changeText = '0%';
+        isPositive = true;
+      }
+    } else {
+      const pct = ((todayNewFollowers - dailyAvg) / dailyAvg) * 100;
+      isPositive = pct >= 0;
+      changeText = `${pct >= 0 ? '+' : ''}${pct.toFixed(0)}%`;
+    }
+
+    return {
+      value: currentFollowers,
+      change: dailyAvg === 0 && todayNewFollowers > 0 ? `${changeText} today` : `${changeText} vs last 7 days`,
+      isPositive
+    };
+  })();
+
+  // Stats matching database values dynamically
   const stats = [
     {
-      label: 'DMS SENT',
-      value: Math.max(3, totalDMsSentToday),
-      change: '+100% vs last 7 days',
-      isPositive: true,
+      label: 'DMS SENT TODAY',
+      value: dmsMetric.value,
+      change: dmsMetric.change,
+      isPositive: dmsMetric.isPositive,
       icon: MessageSquare,
     },
     {
-      label: 'LINK CLICKS',
-      value: Math.max(3, totalLeadsCaptured + 1),
-      change: '+100% vs last 7 days',
-      isPositive: true,
+      label: 'LINK CLICKS TODAY',
+      value: clicksMetric.value,
+      change: clicksMetric.change,
+      isPositive: clicksMetric.isPositive,
       icon: MousePointerClick,
     },
     {
-      label: 'LEADS COLLECTED',
-      value: Math.max(2, totalLeadsCaptured),
-      change: '+100% vs last 7 days',
-      isPositive: true,
+      label: 'LEADS COLLECTED TODAY',
+      value: leadsMetric.value,
+      change: leadsMetric.change,
+      isPositive: leadsMetric.isPositive,
       icon: User,
     },
     {
       label: 'TOTAL FOLLOWERS',
-      value: activeAccount?.followers_count || 8,
-      change: '0% vs last 7 days',
-      isPositive: false,
+      value: followersMetric.value,
+      change: followersMetric.change,
+      isPositive: followersMetric.isPositive,
       icon: Users,
     }
   ];
@@ -470,7 +569,7 @@ export default function HomeDashboard() {
               <h2 className="text-lg font-extrabold text-zinc-950">Performance Snapshot</h2>
               <span className="text-xs text-zinc-450">Last 7 days</span>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {stats.map((st, idx) => {
                 const Icon = st.icon;
                 return (
