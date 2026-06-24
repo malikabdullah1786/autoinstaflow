@@ -172,6 +172,48 @@ describe('Email Notification System', () => {
         })
       );
     });
+
+    it('should call sendMail for support ticket customer receipt', async () => {
+      const result = await sendEmailNotification({
+        to: 'customer@example.com',
+        type: 'support_ticket_receipt',
+        data: {
+          name: 'Charlie Brown',
+          ticketSubject: 'Billing Issue',
+          ticketMessage: 'I was double charged.',
+        },
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockSendMail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'customer@example.com',
+          subject: 'Support Ticket Received: Billing Issue 📥',
+          html: expect.stringContaining('Billing Issue'),
+        })
+      );
+    });
+
+    it('should call sendMail for support ticket admin alert', async () => {
+      const result = await sendEmailNotification({
+        to: 'instaflowauto@gmail.com',
+        type: 'support_ticket_admin',
+        data: {
+          ticketSenderEmail: 'customer@example.com',
+          ticketSubject: 'Billing Issue',
+          ticketMessage: 'I was double charged.',
+        },
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockSendMail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'instaflowauto@gmail.com',
+          subject: '[Admin Alert] Support Ticket Submitted: Billing Issue ⚡',
+          html: expect.stringContaining('customer@example.com'),
+        })
+      );
+    });
   });
 
   describe('POST /api/email/send API Route', () => {

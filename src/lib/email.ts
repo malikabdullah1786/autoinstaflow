@@ -355,10 +355,62 @@ const renderPromotionalEmail = (title: string, messageHtml: string, ctaText?: st
   return wrapEmailTemplate(content, title);
 };
 
+// 6. Support Ticket Customer Receipt Template
+const renderSupportTicketReceipt = (name: string, subject: string, message: string): string => {
+  const content = `
+    <h2 class="title">Support Ticket Received 📥</h2>
+    <p class="text">
+      Hello ${name}, we have received your support request regarding <strong>"${subject}"</strong>. Our team is already reviewing the details and will get back to you within 2 hours.
+    </p>
+    
+    <div class="highlight-box">
+      <div class="highlight-title">Your Submitted Message</div>
+      <p class="text" style="font-style: italic; white-space: pre-wrap; margin-bottom: 0; color: #d4d4d8;">
+        "${message}"
+      </p>
+    </div>
+
+    <p class="text" style="margin-bottom: 0;">
+      If you have additional details to share, simply reply directly to this email. Thank you for your patience!
+    </p>
+  `;
+  return wrapEmailTemplate(content, `Support ticket received: ${subject}`);
+};
+
+// 7. Support Ticket Admin Notification Template
+const renderSupportTicketAdmin = (senderEmail: string, subject: string, message: string): string => {
+  const content = `
+    <h2 class="title" style="color: #f59e0b;">New Support Ticket Submitted ⚡</h2>
+    <p class="text">
+      A new support ticket has been submitted from the platform.
+    </p>
+    
+    <div class="highlight-box">
+      <div class="highlight-title">Ticket Details</div>
+      <div class="highlight-item">
+        <span class="highlight-label">Sender Email</span>
+        <span class="highlight-value">${senderEmail}</span>
+      </div>
+      <div class="highlight-item">
+        <span class="highlight-label">Subject</span>
+        <span class="highlight-value">${subject}</span>
+      </div>
+    </div>
+
+    <div class="highlight-box" style="background-color: #1a1523; border-color: #4b3e6b;">
+      <div class="highlight-title" style="color: #a78bfa;">Message Body</div>
+      <p class="text" style="white-space: pre-wrap; margin-bottom: 0; color: #f4f4f5;">
+        ${message}
+      </p>
+    </div>
+  `;
+  return wrapEmailTemplate(content, `New ticket: ${subject} from ${senderEmail}`);
+};
+
 // Consolidated Sender Function
 export interface EmailPayload {
   to: string;
-  type: 'welcome' | 'plan_activated' | 'instagram_connected' | 'instagram_disconnected' | 'promotional';
+  type: 'welcome' | 'plan_activated' | 'instagram_connected' | 'instagram_disconnected' | 'promotional' | 'support_ticket_receipt' | 'support_ticket_admin';
   data: {
     name?: string;
     email?: string;
@@ -371,6 +423,9 @@ export interface EmailPayload {
     promoContentHtml?: string;
     promoCtaText?: string;
     promoCtaUrl?: string;
+    ticketSubject?: string;
+    ticketMessage?: string;
+    ticketSenderEmail?: string;
   };
 }
 
@@ -415,6 +470,22 @@ export const sendEmailNotification = async (payload: EmailPayload): Promise<{ su
         data.promoContentHtml || '<p></p>',
         data.promoCtaText,
         data.promoCtaUrl
+      );
+      break;
+    case 'support_ticket_receipt':
+      subject = `Support Ticket Received: ${data.ticketSubject} 📥`;
+      html = renderSupportTicketReceipt(
+        data.name || 'User',
+        data.ticketSubject || '',
+        data.ticketMessage || ''
+      );
+      break;
+    case 'support_ticket_admin':
+      subject = `[Admin Alert] Support Ticket Submitted: ${data.ticketSubject} ⚡`;
+      html = renderSupportTicketAdmin(
+        data.ticketSenderEmail || '',
+        data.ticketSubject || '',
+        data.ticketMessage || ''
       );
       break;
     default:

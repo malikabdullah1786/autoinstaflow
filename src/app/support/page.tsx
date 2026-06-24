@@ -22,6 +22,41 @@ export default function PublicSupportPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    const senderEmail = email;
+    const ticketSubject = subject;
+    const ticketMessage = message;
+
+    // Send receipt email to customer asynchronously
+    fetch('/api/email/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        to: senderEmail,
+        type: 'support_ticket_receipt',
+        data: {
+          name: user?.name || senderEmail.split('@')[0],
+          ticketSubject,
+          ticketMessage
+        }
+      })
+    }).catch(err => console.error("Failed to send support ticket receipt email:", err));
+
+    // Send alert email to admin (instaflowauto@gmail.com) asynchronously
+    fetch('/api/email/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        to: 'instaflowauto@gmail.com',
+        type: 'support_ticket_admin',
+        data: {
+          ticketSenderEmail: senderEmail,
+          ticketSubject,
+          ticketMessage
+        }
+      })
+    }).catch(err => console.error("Failed to send support ticket admin alert email:", err));
+
     setSubmitted(true);
     setSubject('');
     setMessage('');
