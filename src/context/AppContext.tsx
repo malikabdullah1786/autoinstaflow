@@ -171,6 +171,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 updated_at: new Date().toISOString()
               }, { onConflict: 'email' }).select().single();
               dbUser = insertedUser;
+
+              // Send Welcome Email asynchronously
+              if (dbUser && dbUser.email) {
+                fetch('/api/email/send', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    to: dbUser.email,
+                    type: 'welcome',
+                    data: { name: dbUser.name }
+                  })
+                }).catch(err => console.error("Failed to send welcome email:", err));
+              }
             }
             
             if (dbUser) {
@@ -623,6 +636,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return { success: false, error: error.message };
         }
         
+        // Trigger connected email notification asynchronously
+        if (user && user.email) {
+          fetch('/api/email/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to: user.email,
+              type: 'instagram_connected',
+              data: {
+                name: user.name,
+                igUsername: cleanUsername,
+                followersCount: accountData.followersCount || 0
+              }
+            })
+          }).catch(err => console.error("Failed to send instagram linked email:", err));
+        }
+        
         setAccounts(prev => {
           const filtered = prev.filter(a => a.username.toLowerCase() !== cleanUsername);
           return [...filtered, data as InstagramAccount];
@@ -659,6 +689,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const removeInstagramAccount = async (accountId: string) => {
+    const accountToDelete = accounts.find(acc => acc.id === accountId);
+
     if (isSupabaseConfigured()) {
       try {
         await supabase.from('instagram_accounts').delete().eq('id', accountId);
@@ -666,6 +698,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch (e) {
         console.error("Failed to delete account from Supabase:", e);
       }
+    }
+
+    if (accountToDelete && user && user.email) {
+      fetch('/api/email/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: user.email,
+          type: 'instagram_disconnected',
+          data: {
+            name: user.name,
+            igUsername: accountToDelete.username
+          }
+        })
+      }).catch(err => console.error("Failed to send instagram disconnected email:", err));
     }
 
     setAccounts(accounts.filter(acc => acc.id !== accountId));
@@ -1718,6 +1765,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       billing_cycle: billingCycle,
       dm_quota_monthly: newLimit,
     });
+
+    // Send plan activated email notification asynchronously
+    if (user && user.email) {
+      fetch('/api/email/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: user.email,
+          type: 'plan_activated',
+          data: {
+            name: user.name,
+            plan,
+            cycle: billingCycle,
+            quota: newLimit
+          }
+        })
+      }).catch(err => console.error("Failed to send plan upgraded email:", err));
+    }
   };
 
   const dismissUpgradeBanner = () => {
