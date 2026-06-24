@@ -229,7 +229,7 @@ describe('Email Notification System', () => {
       expect(data.error).toContain('to and type are required');
     });
 
-    it('should return 200 and return status queued', async () => {
+    it('should return 200 and return status sent', async () => {
       const request = new Request('http://localhost/api/email/send', {
         method: 'POST',
         body: JSON.stringify({
@@ -243,7 +243,7 @@ describe('Email Notification System', () => {
       expect(response.status).toBe(200);
       const data = await response.json();
       expect(data.success).toBe(true);
-      expect(data.status).toBe('queued');
+      expect(data.status).toBe('sent');
     });
   });
 });
