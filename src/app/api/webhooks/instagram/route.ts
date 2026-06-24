@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { checkKeywordMatch } from '../../../../lib/db';
 import crypto from 'crypto';
+import { Client } from '@upstash/qstash';
 
 // Setup Supabase Client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -75,852 +76,70 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
     }
 
+    // Check if Upstash QStash is configured
+    const qstashToken = process.env.QSTASH_TOKEN;
+    const qstash = qstashToken ? new Client({ token: qstashToken }) : null;
+
+    if (qstash) {
+      console.log('Upstash QStash configured. Forwarding events to priority queues...');
+      const host = req.headers.get('host') || 'autoinstaflow-pied.vercel.app';
+      const protocol = req.headers.get('x-forwarded-proto') || 'https';
+      const destinationUrl = `${protocol}://${host}/api/webhooks/instagram/process`;
+
+      for (const entry of body.entry) {
+        const instagramAccountId = entry.id;
+
+        // Fetch subscription plan for Workspace to determine queue priority
+        const { data: accounts } = await supabase
+          .from('instagram_accounts')
+          .select('workspace_id')
+          .eq('instagram_user_id', instagramAccountId)
+          .limit(1);
+
+        const account = accounts?.[0];
+        let plan = 'free';
+
+        if (account?.workspace_id) {
+          const { data: workspace } = await supabase
+            .from('workspaces')
+            .select('plan')
+            .eq('id', account.workspace_id)
+            .single();
+
+          if (workspace?.plan) {
+            plan = workspace.plan;
+          }
+        }
+
+        const queueName = (plan === 'pro' || plan === 'growth') ? 'high-priority' : 'default-priority';
+        console.log(`Enqueuing event to Upstash queue "${queueName}" for Instagram Account ID: ${instagramAccountId}`);
+
+        try {
+          await qstash.publishJSON({
+            url: destinationUrl,
+            body: {
+              entry,
+              instagramAccountId
+            },
+            headers: {
+              "Upstash-Queue": queueName
+            }
+          });
+        } catch (publishError: any) {
+          // If QStash limits are exhausted (e.g. daily limit 1000 messages or rate limits), fallback directly to inline synchronous processing.
+          console.error(`QStash publishing failed (limit or rate limit exceeded). Falling back to direct synchronous processing:`, publishError);
+          await processEntrySynchronously(entry, instagramAccountId);
+        }
+      }
+
+      return NextResponse.json({ success: true });
+    }
+
+    // Fallback: Process synchronously if QStash is not configured (e.g. local development)
+    console.log('Upstash QStash NOT configured. Processing webhook event synchronously...');
+
     for (const entry of body.entry) {
-      const instagramAccountId = entry.id; // Instagram Account ID of the page
-
-      // 1. Handle Comments Webhook (entry.changes)
-      if (entry.changes) {
-        for (const change of entry.changes) {
-          if (change.field === 'comments') {
-            const { id: commentId, text: commentText, from, media } = change.value;
-            if (!from || !from.username || !from.id) continue;
-
-            const senderUsername = from.username;
-            const senderIgId = from.id;
-            const postId = media?.id;
-
-            console.log(`Received comment webhook: "${commentText}" from @${senderUsername} on post ${postId}`);
-
-            // Fetch the Instagram account details from Supabase
-            const { data: accounts, error: accError } = await supabase
-              .from('instagram_accounts')
-              .select('*')
-              .eq('instagram_user_id', instagramAccountId)
-              .limit(1);
-
-            const account = accounts?.[0];
-
-            if (accError || !account) {
-              console.error(`Instagram account ${instagramAccountId} not found in database:`, accError);
-              continue;
-            }
-
-            // Fetch live comment automations for this account
-            const { data: automations, error: autError } = await supabase
-              .from('automations')
-              .select('*')
-              .eq('instagram_account_id', account.id)
-              .eq('status', 'live')
-              .eq('trigger_type', 'comment');
-
-            if (autError || !automations) {
-              console.error('Error fetching automations:', autError);
-              continue;
-            }
-
-            // Find matching automation
-            const matchedAut = automations.find(aut => {
-              const postMatches = !aut.trigger_config?.post_id || aut.trigger_config.post_id === postId;
-              const keywordsMatch = checkKeywordMatch(commentText, aut.trigger_config?.keywords);
-              return postMatches && keywordsMatch;
-            });
-
-            if (!matchedAut) {
-              console.log('No matching automation found for comment:', commentText);
-              continue;
-            }
-
-            const igUserId = `ig_user_${senderUsername.toLowerCase()}`;
-
-            // Check 24-hour deduplication (Property 9) - Reduced to 10 seconds for testing
-            const oneDayAgo = new Date(Date.now() - 10 * 1000).toISOString();
-            const { data: recentSent } = await supabase
-              .from('automation_events')
-              .select('id')
-              .eq('automation_id', matchedAut.id)
-              .eq('instagram_user_id', igUserId)
-              .eq('event_type', 'dm_sent')
-              .gt('occurred_at', oneDayAgo)
-              .limit(1)
-              .maybeSingle();
-
-            if (recentSent) {
-              console.log(`Deduplicated: @${senderUsername} already sent a DM from this automation in the last 24h.`);
-              await supabase.from('automation_events').insert({
-                automation_id: matchedAut.id,
-                workspace_id: account.workspace_id,
-                event_type: 'dm_blocked_dedup',
-                instagram_user_id: igUserId,
-                instagram_username: senderUsername,
-                metadata: { text: commentText, reason: '24h throttle' },
-                occurred_at: new Date().toISOString()
-              });
-              continue;
-            }
-
-            // Fetch workspace to check quota (Property 14)
-            const { data: workspace } = await supabase
-              .from('workspaces')
-              .select('*')
-              .eq('id', account.workspace_id)
-              .single();
-
-            if (!workspace) continue;
-
-            // Global quota check for Free plans
-            if (workspace.plan === 'free') {
-              const globalQuotaExceeded = await checkGlobalQuotaExceeded(account.instagram_user_id);
-              if (globalQuotaExceeded) {
-                console.warn(`Global quota exhausted for Instagram account ${account.instagram_user_id}`);
-                await supabase.from('automation_events').insert({
-                  automation_id: matchedAut.id,
-                  workspace_id: account.workspace_id,
-                  event_type: 'dm_blocked_quota',
-                  instagram_user_id: igUserId,
-                  instagram_username: senderUsername,
-                  metadata: { text: commentText, reason: 'global_account_limit_exhausted' },
-                  occurred_at: new Date().toISOString()
-                });
-                continue;
-              }
-            }
-
-            const planRemaining = Math.max(0, workspace.dm_quota_monthly - workspace.dm_sent_current_period);
-            const addonRemaining = Math.max(0, workspace.dm_addon_credits);
-            const totalRemaining = planRemaining + addonRemaining;
-
-            if (totalRemaining <= 0) {
-              console.warn(`Quota exhausted for workspace ${account.workspace_id}`);
-              await supabase.from('automation_events').insert({
-                automation_id: matchedAut.id,
-                workspace_id: account.workspace_id,
-                event_type: 'dm_blocked_quota',
-                instagram_user_id: igUserId,
-                instagram_username: senderUsername,
-                metadata: { text: commentText },
-                occurred_at: new Date().toISOString()
-              });
-              continue;
-            }
-
-            // Fetch contact from DB
-            const { data: dbContact } = await supabase
-              .from('contacts')
-              .select('*')
-              .eq('workspace_id', account.workspace_id)
-              .eq('instagram_user_id', igUserId)
-              .maybeSingle();
-
-            const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
-            const extractedEmail = commentText.match(emailRegex)?.[0];
-            const hasSavedEmail = dbContact?.email && dbContact.email.includes('@');
-
-            let finalMessage = matchedAut.action_config?.message || '';
-            let finalUrl = matchedAut.action_config?.url || '';
-            let isEmailPrompt = false;
-            let isEmailCollected = false;
-            let isFollowPrompt = false;
-            let quickReplies: any = undefined;
-
-            if (matchedAut.action_type === 'email_gate') {
-              if (extractedEmail || hasSavedEmail) {
-                isEmailCollected = true;
-              } else {
-                finalMessage = `Please provide your email address to receive your link:`;
-                finalUrl = '';
-                isEmailPrompt = true;
-              }
-            } else if (matchedAut.action_type === 'follow_gate') {
-              const isFollowing = await checkInstagramFollowStatus(senderIgId, account.access_token);
-              if (!isFollowing) {
-                finalMessage = `Nearly there! The link is especially for my followers ✨\n\nRight after you follow me, reply with 'following' (or tap the button below) and I'll send you the link! 🎉`;
-                finalUrl = '';
-                isFollowPrompt = true;
-                quickReplies = [{ title: 'Following', payload: `check_follow_${matchedAut.id}` }];
-              }
-            }
-
-            // Send public comment reply if configured
-            const publicCommentReply = matchedAut.action_config?.comment_reply;
-            if (publicCommentReply) {
-              await sendInstagramCommentReply(commentId, publicCommentReply, account.access_token);
-            }
-
-            // Send private reply via Meta Graph API (notifying the user on the comment thread)
-            const commentReplyText = isFollowPrompt
-              ? finalMessage
-              : (isEmailPrompt ? `Please reply to this DM with your email address to receive your link! 📩` : finalMessage);
-
-            let messageBody: any = {};
-            if (isFollowPrompt) {
-              messageBody = {
-                text: commentReplyText,
-                quick_replies: [
-                  {
-                    content_type: 'text',
-                    title: 'Following',
-                    payload: `check_follow_${matchedAut.id}`
-                  }
-                ]
-              };
-            } else if (isEmailPrompt) {
-              messageBody = {
-                text: commentReplyText
-              };
-            } else {
-              const actionLinks = matchedAut.action_config?.links || (matchedAut.action_config?.url ? [{ url: matchedAut.action_config.url, label: matchedAut.name || 'Download Now' }] : []);
-              if (actionLinks.length > 0) {
-                const linksText = actionLinks.map((l: any) => `${l.label || 'Link'}: ${l.url}`).join('\n');
-                messageBody = {
-                  text: `${commentReplyText}\n\n${linksText}`.trim()
-                };
-              } else {
-                messageBody = {
-                  text: commentReplyText
-                };
-              }
-            }
-
-            const response = await fetch(`https://graph.instagram.com/v20.0/${instagramAccountId}/messages`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${account.access_token}`
-              },
-              body: JSON.stringify({
-                recipient: {
-                  comment_id: commentId
-                },
-                message: messageBody
-              })
-            });
-
-            const resData = await response.json();
-
-            if (!response.ok || resData.error) {
-              console.error('Meta API private reply failed:', resData.error);
-              await supabase.from('automation_events').insert({
-                automation_id: matchedAut.id,
-                workspace_id: account.workspace_id,
-                event_type: 'dm_failed',
-                instagram_user_id: igUserId,
-                instagram_username: senderUsername,
-                metadata: { text: commentText, error: resData.error?.message || 'Meta API error' },
-                occurred_at: new Date().toISOString()
-              });
-              continue;
-            }
-
-            // Quota Deduction (only if not gated, as gates deduct quota when delivering the final link in messaging webhook)
-            if (!isFollowPrompt && !isEmailPrompt) {
-              await deductWorkspaceQuota(workspace, account.instagram_user_id);
-            }
-
-            // Update/Upsert Contact
-            const contactEmail = extractedEmail || dbContact?.email || null;
-            if (dbContact) {
-              await supabase.from('contacts').update({
-                last_seen_at: new Date().toISOString(),
-                interaction_count: dbContact.interaction_count + 1,
-                email: contactEmail
-              }).eq('id', dbContact.id);
-            } else {
-              await supabase.from('contacts').insert({
-                workspace_id: account.workspace_id,
-                instagram_user_id: igUserId,
-                instagram_username: senderUsername,
-                email: contactEmail,
-                first_seen_at: new Date().toISOString(),
-                last_seen_at: new Date().toISOString(),
-                interaction_count: 1
-              });
-            }
-
-            // Update Automation dm_sent_count
-            await supabase.from('automations').update({
-              dm_sent_count: matchedAut.dm_sent_count + 1
-            }).eq('id', matchedAut.id);
-
-            // Log event
-            if (isEmailCollected && extractedEmail) {
-              await supabase.from('automation_events').insert({
-                automation_id: matchedAut.id,
-                workspace_id: account.workspace_id,
-                event_type: 'email_collected',
-                instagram_user_id: igUserId,
-                instagram_username: senderUsername,
-                metadata: { text: commentText, email: extractedEmail },
-                occurred_at: new Date().toISOString()
-              });
-            }
-
-            const matchedKeyword = (matchedAut.trigger_config?.keywords || []).find((keyword: string) => {
-              const kw = keyword.toLowerCase().trim();
-              return kw && commentText.toLowerCase().includes(kw);
-            }) || 'default';
-
-            await supabase.from('automation_events').insert({
-              automation_id: matchedAut.id,
-              workspace_id: account.workspace_id,
-              event_type: 'dm_sent',
-              instagram_user_id: igUserId,
-              instagram_username: senderUsername,
-              metadata: {
-                text: commentText,
-                action: matchedAut.action_type,
-                message: (isEmailPrompt || isFollowPrompt) ? commentReplyText : finalMessage,
-                url: finalUrl,
-                keyword: matchedKeyword
-              },
-              occurred_at: new Date().toISOString()
-            });
-          }
-        }
-      }
-
-      // 2. Handle Messages/DMs Webhook (entry.messaging) - primarily for Email/Follow Gate replies
-      if (entry.messaging) {
-        for (const messageEvent of entry.messaging) {
-          if (messageEvent.message && !messageEvent.message.is_echo) {
-            const senderId = messageEvent.sender.id;
-            const messageText = messageEvent.message.text || '';
-            const quickReplyPayload = messageEvent.message.quick_reply?.payload;
-
-            console.log(`Received DM webhook from sender ID ${senderId}: "${messageText}" (payload: ${quickReplyPayload})`);
-
-            // Fetch the Instagram account details from Supabase using entry.id
-            const { data: accounts, error: accError } = await supabase
-              .from('instagram_accounts')
-              .select('*')
-              .eq('instagram_user_id', instagramAccountId)
-              .limit(1);
-
-            const account = accounts?.[0];
-
-            if (accError || !account) {
-              console.error(`Instagram account ${instagramAccountId} not found in database:`, accError);
-              continue;
-            }
-
-            // Fetch user profile from Meta Graph API to resolve their username and follow status
-            let senderUsername = '';
-            let isUserFollowBusiness = false;
-            try {
-              const profileRes = await fetch(`https://graph.instagram.com/v20.0/${senderId}?fields=username,is_user_follow_business&access_token=${account.access_token}`);
-              const profileData = await profileRes.json();
-              if (profileRes.ok && profileData) {
-                if (profileData.username) {
-                  senderUsername = profileData.username;
-                }
-                if (profileData.is_user_follow_business !== undefined) {
-                  isUserFollowBusiness = profileData.is_user_follow_business;
-                }
-              } else if (profileData && profileData.error) {
-                if (profileData.error.code === 230) {
-                  console.log(`[Webhook Messaging] User consent required for sender ID ${senderId} to access profile. This is expected behavior from Meta API.`);
-                } else {
-                  console.warn(`[Webhook Messaging] Meta profile API returned error:`, profileData.error);
-                }
-              }
-            } catch (profileErr) {
-              console.error('Error fetching user profile from Meta Graph API:', profileErr);
-            }
-
-            if (!senderUsername) {
-              console.warn(`Could not resolve username for sender ID ${senderId}. Skipping DM handling.`);
-              continue;
-            }
-
-            const igUserId = `ig_user_${senderUsername.toLowerCase()}`;
-
-            // Fetch contact from DB
-            const { data: dbContact } = await supabase
-              .from('contacts')
-              .select('*')
-              .eq('workspace_id', account.workspace_id)
-              .eq('instagram_user_id', igUserId)
-              .maybeSingle();
-
-            // 1. Check if this message triggers a NEW direct message or story reply automation
-            let matchedAut = null;
-            let isNewTrigger = false;
-
-            // Story triggers have reply_to.story or telltale mention text
-            const isStory = !!(messageEvent.message.reply_to?.story || messageText.toLowerCase().includes("mentioned you in their story") || messageText.toLowerCase().includes("reacted to your story"));
-            const targetTriggerType = isStory ? 'story_reply' : 'dm';
-
-            // Only check keyword triggers if NOT a quick reply payload
-            if (!quickReplyPayload) {
-              const { data: directAutomations } = await supabase
-                .from('automations')
-                .select('*')
-                .eq('instagram_account_id', account.id)
-                .eq('status', 'live')
-                .eq('trigger_type', targetTriggerType);
-
-              if (directAutomations && directAutomations.length > 0) {
-                matchedAut = directAutomations.find(aut => {
-                  const keywordsMatch = checkKeywordMatch(messageText, aut.trigger_config?.keywords);
-                  const storyMatches = !aut.trigger_config?.post_id || aut.trigger_config.post_id === messageEvent.message.reply_to?.story?.id;
-                  return keywordsMatch && storyMatches;
-                });
-                if (matchedAut) {
-                  isNewTrigger = true;
-                }
-              }
-            }
-
-            if (isNewTrigger && matchedAut) {
-              // Perform deduplication
-              const oneDayAgo = new Date(Date.now() - 10 * 1000).toISOString(); // 10s throttle for safety/testing
-              const { data: recentSent } = await supabase
-                .from('automation_events')
-                .select('id')
-                .eq('automation_id', matchedAut.id)
-                .eq('instagram_user_id', igUserId)
-                .eq('event_type', 'dm_sent')
-                .gt('occurred_at', oneDayAgo)
-                .limit(1)
-                .maybeSingle();
-
-              if (recentSent) {
-                console.log(`Deduplicated direct trigger: @${senderUsername} already sent a DM from this automation in the last 24h.`);
-                await supabase.from('automation_events').insert({
-                  automation_id: matchedAut.id,
-                  workspace_id: account.workspace_id,
-                  event_type: 'dm_blocked_dedup',
-                  instagram_user_id: igUserId,
-                  instagram_username: senderUsername,
-                  metadata: { text: messageText, reason: '24h throttle' },
-                  occurred_at: new Date().toISOString()
-                });
-                continue;
-              }
-
-              // Fetch workspace to check quota
-              const { data: workspace } = await supabase
-                .from('workspaces')
-                .select('*')
-                .eq('id', account.workspace_id)
-                .single();
-
-              if (!workspace) continue;
-
-              // Global quota check for Free plans
-              if (workspace.plan === 'free') {
-                const globalQuotaExceeded = await checkGlobalQuotaExceeded(account.instagram_user_id);
-                if (globalQuotaExceeded) {
-                  console.warn(`Global quota exhausted for Instagram account ${account.instagram_user_id}`);
-                  await supabase.from('automation_events').insert({
-                    automation_id: matchedAut.id,
-                    workspace_id: account.workspace_id,
-                    event_type: 'dm_blocked_quota',
-                    instagram_user_id: igUserId,
-                    instagram_username: senderUsername,
-                    metadata: { text: messageText, reason: 'global_account_limit_exhausted' },
-                    occurred_at: new Date().toISOString()
-                  });
-                  continue;
-                }
-              }
-
-              const planRemaining = Math.max(0, workspace.dm_quota_monthly - workspace.dm_sent_current_period);
-              const addonRemaining = Math.max(0, workspace.dm_addon_credits);
-              const totalRemaining = planRemaining + addonRemaining;
-
-              if (totalRemaining <= 0) {
-                console.warn(`Quota exhausted for workspace ${account.workspace_id}`);
-                await supabase.from('automation_events').insert({
-                  automation_id: matchedAut.id,
-                  workspace_id: account.workspace_id,
-                  event_type: 'dm_blocked_quota',
-                  instagram_user_id: igUserId,
-                  instagram_username: senderUsername,
-                  metadata: { text: messageText },
-                  occurred_at: new Date().toISOString()
-                });
-                continue;
-              }
-
-              // Evaluate gates
-              let finalMessage = matchedAut.action_config?.message || '';
-              let finalUrl = matchedAut.action_config?.url || '';
-              let isEmailPrompt = false;
-              let isEmailCollected = false;
-              let isFollowPrompt = false;
-              let quickReplies: any = undefined;
-
-              const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
-              const extractedEmail = messageText.match(emailRegex)?.[0];
-              const hasSavedEmail = dbContact?.email && dbContact.email.includes('@');
-
-              if (matchedAut.action_type === 'email_gate') {
-                if (extractedEmail || hasSavedEmail) {
-                  isEmailCollected = true;
-                } else {
-                  finalMessage = `Please provide your email address to receive your link:`;
-                  finalUrl = '';
-                  isEmailPrompt = true;
-                }
-              } else if (matchedAut.action_type === 'follow_gate') {
-                const isFollowing = isUserFollowBusiness || await checkInstagramFollowStatus(senderId, account.access_token);
-                if (!isFollowing) {
-                  finalMessage = `Nearly there! The link is especially for my followers ✨\n\nRight after you follow me, reply with 'Following' (or tap the button below) and I'll send you the link! 🎉`;
-                  finalUrl = '';
-                  isFollowPrompt = true;
-                  quickReplies = [{ title: 'Following', payload: `check_follow_${matchedAut.id}` }];
-                }
-              }
-
-              // Send response
-              if (isFollowPrompt) {
-                await sendInstagramDMWithQuickReplies(
-                  instagramAccountId,
-                  senderId,
-                  finalMessage,
-                  quickReplies,
-                  account.access_token
-                );
-              } else if (isEmailPrompt) {
-                await sendInstagramDM(
-                  instagramAccountId,
-                  senderId,
-                  finalMessage,
-                  account.access_token
-                );
-              } else {
-                const actionLinks = matchedAut.action_config?.links || (matchedAut.action_config?.url ? [{ url: matchedAut.action_config.url, label: matchedAut.name || 'Download Now' }] : []);
-                if (actionLinks.length > 0) {
-                  await sendInstagramLinkButtons(
-                    instagramAccountId,
-                    senderId,
-                    finalMessage || 'Click below for complete details',
-                    actionLinks,
-                    account.access_token
-                  );
-                } else {
-                  await sendInstagramDM(
-                    instagramAccountId,
-                    senderId,
-                    finalMessage,
-                    account.access_token
-                  );
-                }
-              }
-
-              // Quota Deduction
-              await deductWorkspaceQuota(workspace, account.instagram_user_id);
-
-              // Update/Upsert Contact
-              const contactEmail = extractedEmail || dbContact?.email || null;
-              if (dbContact) {
-                await supabase.from('contacts').update({
-                  last_seen_at: new Date().toISOString(),
-                  interaction_count: dbContact.interaction_count + 1,
-                  email: contactEmail
-                }).eq('id', dbContact.id);
-              } else {
-                await supabase.from('contacts').insert({
-                  workspace_id: account.workspace_id,
-                  instagram_user_id: igUserId,
-                  instagram_username: senderUsername,
-                  email: contactEmail,
-                  first_seen_at: new Date().toISOString(),
-                  last_seen_at: new Date().toISOString(),
-                  interaction_count: 1
-                });
-              }
-
-              // Update Automation dm_sent_count
-              await supabase.from('automations').update({
-                dm_sent_count: matchedAut.dm_sent_count + 1
-              }).eq('id', matchedAut.id);
-
-              // Log event
-              if (isEmailCollected && extractedEmail) {
-                await supabase.from('automation_events').insert({
-                  automation_id: matchedAut.id,
-                  workspace_id: account.workspace_id,
-                  event_type: 'email_collected',
-                  instagram_user_id: igUserId,
-                  instagram_username: senderUsername,
-                  metadata: { text: messageText, email: extractedEmail },
-                  occurred_at: new Date().toISOString()
-                });
-              }
-
-              const matchedKeyword = (matchedAut.trigger_config?.keywords || []).find((keyword: string) => {
-                const kw = keyword.toLowerCase().trim();
-                return kw && messageText.toLowerCase().includes(kw);
-              }) || 'default';
-
-              await supabase.from('automation_events').insert({
-                automation_id: matchedAut.id,
-                workspace_id: account.workspace_id,
-                event_type: 'dm_sent',
-                instagram_user_id: igUserId,
-                instagram_username: senderUsername,
-                metadata: {
-                  text: messageText,
-                  action: matchedAut.action_type,
-                  message: finalMessage,
-                  url: finalUrl,
-                  keyword: matchedKeyword
-                },
-                occurred_at: new Date().toISOString()
-              });
-
-              continue;
-            }
-
-            // 2. Otherwise fallback to checking if it is a reply to an ongoing active Email/Follow Gate automation
-            if (!dbContact) {
-              console.log(`No existing contact found for @${senderUsername}. Skipping.`);
-              continue;
-            }
-
-            // Try to find the most recent email-gate or follow-gate prompt sent to this user
-            const { data: lastPromptEvent } = await supabase
-              .from('automation_events')
-              .select('*')
-              .eq('instagram_user_id', igUserId)
-              .eq('event_type', 'dm_sent')
-              .order('occurred_at', { ascending: false })
-              .limit(1)
-              .maybeSingle();
-
-            if (lastPromptEvent && lastPromptEvent.automation_id) {
-              const { data: aut } = await supabase
-                .from('automations')
-                .select('*')
-                .eq('id', lastPromptEvent.automation_id)
-                .eq('status', 'live')
-                .maybeSingle();
-              if (aut) {
-                matchedAut = aut;
-              }
-            }
-
-            // Fallback: if no recent event is found, fallback to the first active email/follow gate automation
-            if (!matchedAut) {
-              const { data: automations } = await supabase
-                .from('automations')
-                .select('*')
-                .eq('instagram_account_id', account.id)
-                .eq('status', 'live')
-                .in('action_type', ['email_gate', 'follow_gate']);
-
-              if (automations && automations.length > 0) {
-                matchedAut = automations[0];
-              }
-            }
-
-            if (!matchedAut) {
-              console.log('No matching gate automation found for user:', igUserId);
-              continue;
-            }
-
-            // Fetch workspace to check quota
-            const { data: workspace } = await supabase
-              .from('workspaces')
-              .select('*')
-              .eq('id', account.workspace_id)
-              .single();
-
-            if (!workspace) continue;
-
-            // Global quota check for Free plans
-            if (workspace.plan === 'free') {
-              const globalQuotaExceeded = await checkGlobalQuotaExceeded(account.instagram_user_id);
-              if (globalQuotaExceeded) {
-                console.warn(`Global quota exhausted for Instagram account ${account.instagram_user_id} on release.`);
-                continue;
-              }
-            }
-
-            const planRemaining = Math.max(0, workspace.dm_quota_monthly - workspace.dm_sent_current_period);
-            const addonRemaining = Math.max(0, workspace.dm_addon_credits);
-            const totalRemaining = planRemaining + addonRemaining;
-
-            if (totalRemaining <= 0) {
-              console.warn(`Quota exhausted for workspace ${account.workspace_id} on release.`);
-              continue;
-            }
-
-            // --- Case A: Follow Gate ---
-            if (matchedAut.action_type === 'follow_gate') {
-              const isFollowing = isUserFollowBusiness || await checkInstagramFollowStatus(senderId, account.access_token);
-
-              if (isFollowing) {
-                const successMessage = `${matchedAut.action_config?.message || 'Click below for complete details'}`.trim();
-                const actionLinks = matchedAut.action_config?.links || (matchedAut.action_config?.url ? [{ url: matchedAut.action_config.url, label: matchedAut.name || 'Download Now' }] : []);
-
-                if (actionLinks.length > 0) {
-                  await sendInstagramLinkButtons(
-                    instagramAccountId,
-                    senderId,
-                    successMessage,
-                    actionLinks,
-                    account.access_token
-                  );
-                } else {
-                  await sendInstagramDM(instagramAccountId, senderId, successMessage, account.access_token);
-                }
-
-                // Quota Deduction
-                await deductWorkspaceQuota(workspace, account.instagram_user_id);
-
-                // Update Automation dm_sent_count
-                await supabase.from('automations').update({
-                  dm_sent_count: matchedAut.dm_sent_count + 1
-                }).eq('id', matchedAut.id);
-
-                // Log follow verified and DM sent
-                await supabase.from('automation_events').insert([
-                  {
-                    automation_id: matchedAut.id,
-                    workspace_id: account.workspace_id,
-                    event_type: 'follow_verified',
-                    instagram_user_id: igUserId,
-                    instagram_username: senderUsername,
-                    metadata: { text: messageText, followed: true },
-                    occurred_at: new Date().toISOString()
-                  },
-                  {
-                    automation_id: matchedAut.id,
-                    workspace_id: account.workspace_id,
-                    event_type: 'dm_sent',
-                    instagram_user_id: igUserId,
-                    instagram_username: senderUsername,
-                    metadata: {
-                      text: messageText,
-                      action: 'follow_gate',
-                      message: successMessage,
-                      url: actionLinks[0]?.url || '',
-                      links: actionLinks
-                    },
-                    occurred_at: new Date().toISOString()
-                  }
-                ]);
-              } else {
-                // Not following yet, send a robust reminder indicating they must follow first
-                const promptMessage = `I checked, but it looks like you aren't following @${account.username || 'us'} yet! 🔍\n\nPlease make sure to follow first, then reply with 'Following' (or tap the button below) so I can send you the link! 🚀`;
-
-                await sendInstagramDMWithQuickReplies(
-                  instagramAccountId,
-                  senderId,
-                  promptMessage,
-                  [{ title: 'Following', payload: `check_follow_${matchedAut.id}` }],
-                  account.access_token
-                );
-
-                // Log DM sent for follow prompt retry
-                await supabase.from('automation_events').insert({
-                  automation_id: matchedAut.id,
-                  workspace_id: account.workspace_id,
-                  event_type: 'dm_sent',
-                  instagram_user_id: igUserId,
-                  instagram_username: senderUsername,
-                  metadata: {
-                    text: messageText,
-                    action: 'follow_gate_prompt_retry',
-                    message: promptMessage
-                  },
-                  occurred_at: new Date().toISOString()
-                });
-              }
-              continue;
-            }
-
-            // --- Case B: Email Gate ---
-            if (matchedAut.action_type === 'email_gate') {
-              const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
-              const extractedEmail = messageText.match(emailRegex)?.[0];
-
-              if (extractedEmail) {
-                // Update contact email in database
-                await supabase.from('contacts').update({
-                  email: extractedEmail,
-                  last_seen_at: new Date().toISOString(),
-                  interaction_count: dbContact.interaction_count + 1
-                }).eq('id', dbContact.id);
-
-                const successMessage = `${matchedAut.action_config?.message || 'Click below for complete details'}`.trim();
-                const actionLinks = matchedAut.action_config?.links || (matchedAut.action_config?.url ? [{ url: matchedAut.action_config.url, label: matchedAut.name || 'Download Now' }] : []);
-
-                if (actionLinks.length > 0) {
-                  await sendInstagramLinkButtons(
-                    instagramAccountId,
-                    senderId,
-                    successMessage,
-                    actionLinks,
-                    account.access_token
-                  );
-                } else {
-                  await sendInstagramDM(instagramAccountId, senderId, successMessage, account.access_token);
-                }
-
-                // Quota Deduction
-                await deductWorkspaceQuota(workspace, account.instagram_user_id);
-
-                // Update Automation dm_sent_count
-                await supabase.from('automations').update({
-                  dm_sent_count: matchedAut.dm_sent_count + 1
-                }).eq('id', matchedAut.id);
-
-                // Log events
-                await supabase.from('automation_events').insert([
-                  {
-                    automation_id: matchedAut.id,
-                    workspace_id: account.workspace_id,
-                    event_type: 'email_collected',
-                    instagram_user_id: igUserId,
-                    instagram_username: senderUsername,
-                    metadata: { text: messageText, email: extractedEmail },
-                    occurred_at: new Date().toISOString()
-                  },
-                  {
-                    automation_id: matchedAut.id,
-                    workspace_id: account.workspace_id,
-                    event_type: 'dm_sent',
-                    instagram_user_id: igUserId,
-                    instagram_username: senderUsername,
-                    metadata: {
-                      text: messageText,
-                      action: matchedAut.action_type,
-                      message: successMessage,
-                      url: actionLinks[0]?.url || '',
-                      links: actionLinks
-                    },
-                    occurred_at: new Date().toISOString()
-                  }
-                ]);
-              } else {
-                // Invalid email sent, repeat prompt!
-                const promptMessage = `Please provide your email address to receive your link:`;
-
-                await sendInstagramDM(instagramAccountId, senderId, promptMessage, account.access_token);
-
-                // Log DM sent for email prompt retry
-                await supabase.from('automation_events').insert({
-                  automation_id: matchedAut.id,
-                  workspace_id: account.workspace_id,
-                  event_type: 'dm_sent',
-                  instagram_user_id: igUserId,
-                  instagram_username: senderUsername,
-                  metadata: {
-                    text: messageText,
-                    action: 'email_gate_prompt_retry',
-                    message: promptMessage
-                  },
-                  occurred_at: new Date().toISOString()
-                });
-              }
-              continue;
-            }
-          }
-        }
-      }
+      await processEntrySynchronously(entry, entry.id);
     }
 
     return NextResponse.json({ success: true });
@@ -930,7 +149,776 @@ export async function POST(req: Request) {
   }
 }
 
-// Helper Functions
+// Core webhook business logic helper to allow both fallback and direct inline processing
+async function processEntrySynchronously(entry: any, instagramAccountId: string) {
+  // 1. Handle Comments Webhook (entry.changes)
+  if (entry.changes) {
+    for (const change of entry.changes) {
+      if (change.field === 'comments') {
+        const { id: commentId, text: commentText, from, media } = change.value;
+        if (!from || !from.username || !from.id) continue;
+
+        const senderUsername = from.username;
+        const senderIgId = from.id;
+        const postId = media?.id;
+
+        console.log(`Received comment webhook: "${commentText}" from @${senderUsername} on post ${postId}`);
+
+        // Fetch the Instagram account details from Supabase
+        const { data: accounts, error: accError } = await supabase
+          .from('instagram_accounts')
+          .select('*')
+          .eq('instagram_user_id', instagramAccountId)
+          .limit(1);
+
+        const account = accounts?.[0];
+
+        if (accError || !account) {
+          console.error(`Instagram account ${instagramAccountId} not found in database:`, accError);
+          continue;
+        }
+
+        // Fetch live comment automations for this account
+        const { data: automations, error: autError } = await supabase
+          .from('automations')
+          .select('*')
+          .eq('instagram_account_id', account.id)
+          .eq('status', 'live')
+          .eq('trigger_type', 'comment');
+
+        if (autError || !automations) {
+          console.error('Error fetching automations:', autError);
+          continue;
+        }
+
+        // Find matching automation
+        const matchedAut = automations.find(aut => {
+          const postMatches = !aut.trigger_config?.post_id || aut.trigger_config.post_id === postId;
+          const keywordsMatch = checkKeywordMatch(commentText, aut.trigger_config?.keywords);
+          return postMatches && keywordsMatch;
+        });
+
+        if (!matchedAut) {
+          console.log('No matching automation found for comment:', commentText);
+          continue;
+        }
+
+        const igUserId = `ig_user_${senderUsername.toLowerCase()}`;
+
+        // Check 24-hour deduplication - Reduced to 10 seconds for testing
+        const oneDayAgo = new Date(Date.now() - 10 * 1000).toISOString();
+        const { data: recentSent } = await supabase
+          .from('automation_events')
+          .select('id')
+          .eq('automation_id', matchedAut.id)
+          .eq('instagram_user_id', igUserId)
+          .eq('event_type', 'dm_sent')
+          .gt('occurred_at', oneDayAgo)
+          .limit(1)
+          .maybeSingle();
+
+        if (recentSent) {
+          console.log(`Deduplicated: @${senderUsername} already sent a DM from this automation in the last 24h.`);
+          await supabase.from('automation_events').insert({
+            automation_id: matchedAut.id,
+            workspace_id: account.workspace_id,
+            event_type: 'dm_blocked_dedup',
+            instagram_user_id: igUserId,
+            instagram_username: senderUsername,
+            metadata: { text: commentText, reason: '24h throttle' },
+            occurred_at: new Date().toISOString()
+          });
+          continue;
+        }
+
+        // Fetch workspace to check quota
+        const { data: workspace } = await supabase
+          .from('workspaces')
+          .select('*')
+          .eq('id', account.workspace_id)
+          .single();
+
+        if (!workspace) continue;
+
+        // Global quota check for Free plans
+        if (workspace.plan === 'free') {
+          const globalQuotaExceeded = await checkGlobalQuotaExceeded(account.instagram_user_id);
+          if (globalQuotaExceeded) {
+            console.warn(`Global quota exhausted for Instagram account ${account.instagram_user_id}`);
+            await supabase.from('automation_events').insert({
+              automation_id: matchedAut.id,
+              workspace_id: account.workspace_id,
+              event_type: 'dm_blocked_quota',
+              instagram_user_id: igUserId,
+              instagram_username: senderUsername,
+              metadata: { text: commentText, reason: 'global_account_limit_exhausted' },
+              occurred_at: new Date().toISOString()
+            });
+            continue;
+          }
+        }
+
+        const planRemaining = Math.max(0, workspace.dm_quota_monthly - workspace.dm_sent_current_period);
+        const addonRemaining = Math.max(0, workspace.dm_addon_credits);
+        const totalRemaining = planRemaining + addonRemaining;
+
+        if (totalRemaining <= 0) {
+          console.warn(`Quota exhausted for workspace ${account.workspace_id}`);
+          await supabase.from('automation_events').insert({
+            automation_id: matchedAut.id,
+            workspace_id: account.workspace_id,
+            event_type: 'dm_blocked_quota',
+            instagram_user_id: igUserId,
+            instagram_username: senderUsername,
+            metadata: { text: commentText },
+            occurred_at: new Date().toISOString()
+          });
+          continue;
+        }
+
+        // Fetch contact from DB
+        const { data: dbContact } = await supabase
+          .from('contacts')
+          .select('*')
+          .eq('workspace_id', account.workspace_id)
+          .eq('instagram_user_id', igUserId)
+          .maybeSingle();
+
+        const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+        const extractedEmail = commentText.match(emailRegex)?.[0];
+        const hasSavedEmail = dbContact?.email && dbContact.email.includes('@');
+
+        let finalMessage = matchedAut.action_config?.message || '';
+        let finalUrl = matchedAut.action_config?.url || '';
+        let isEmailPrompt = false;
+        let isEmailCollected = false;
+        let isFollowPrompt = false;
+        let quickReplies: any = undefined;
+
+        if (matchedAut.action_type === 'email_gate') {
+          if (extractedEmail || hasSavedEmail) {
+            isEmailCollected = true;
+          } else {
+            finalMessage = `Please provide your email address to receive your link:`;
+            finalUrl = '';
+            isEmailPrompt = true;
+          }
+        } else if (matchedAut.action_type === 'follow_gate') {
+          const isFollowing = await checkInstagramFollowStatus(senderIgId, account.access_token);
+          if (!isFollowing) {
+            finalMessage = `Nearly there! The link is especially for my followers ✨\n\nRight after you follow me, reply with 'following' (or tap the button below) and I'll send you the link! 🎉`;
+            finalUrl = '';
+            isFollowPrompt = true;
+            quickReplies = [{ title: 'Following', payload: `check_follow_${matchedAut.id}` }];
+          }
+        }
+
+        // Send public comment reply if configured
+        const publicCommentReply = matchedAut.action_config?.comment_reply;
+        if (publicCommentReply) {
+          await sendInstagramCommentReply(commentId, publicCommentReply, account.access_token);
+        }
+
+        // Send private reply via Meta Graph API
+        const commentReplyText = isFollowPrompt
+          ? finalMessage
+          : (isEmailPrompt ? `Please reply to this DM with your email address to receive your link! 📩` : finalMessage);
+
+        let messageBody: any = {};
+        if (isFollowPrompt) {
+          messageBody = {
+            text: commentReplyText,
+            quick_replies: [
+              {
+                content_type: 'text',
+                title: 'Following',
+                payload: `check_follow_${matchedAut.id}`
+              }
+            ]
+          };
+        } else if (isEmailPrompt) {
+          messageBody = {
+            text: commentReplyText
+          };
+        } else {
+          const actionLinks = matchedAut.action_config?.links || (matchedAut.action_config?.url ? [{ url: matchedAut.action_config.url, label: matchedAut.name || 'Download Now' }] : []);
+          if (actionLinks.length > 0) {
+            const linksText = actionLinks.map((l: any) => `${l.label || 'Link'}: ${l.url}`).join('\n');
+            messageBody = {
+              text: `${commentReplyText}\n\n${linksText}`.trim()
+            };
+          } else {
+            messageBody = {
+              text: commentReplyText
+            };
+          }
+        }
+
+        const response = await fetch(`https://graph.instagram.com/v20.0/${instagramAccountId}/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${account.access_token}`
+          },
+          body: JSON.stringify({
+            recipient: {
+              comment_id: commentId
+            },
+            message: messageBody
+          })
+        });
+
+        const resData = await response.json();
+
+        if (!response.ok || resData.error) {
+          console.error('Meta API private reply failed:', resData.error);
+          await supabase.from('automation_events').insert({
+            automation_id: matchedAut.id,
+            workspace_id: account.workspace_id,
+            event_type: 'dm_failed',
+            instagram_user_id: igUserId,
+            instagram_username: senderUsername,
+            metadata: { text: commentText, error: resData.error?.message || 'Meta API error' },
+            occurred_at: new Date().toISOString()
+          });
+          continue;
+        }
+
+        // Quota Deduction
+        if (!isFollowPrompt && !isEmailPrompt) {
+          await deductWorkspaceQuota(workspace, account.instagram_user_id);
+        }
+
+        // Update/Upsert Contact
+        const contactEmail = extractedEmail || dbContact?.email || null;
+        if (dbContact) {
+          await supabase.from('contacts').update({
+            last_seen_at: new Date().toISOString(),
+            interaction_count: dbContact.interaction_count + 1,
+            email: contactEmail
+          }).eq('id', dbContact.id);
+        } else {
+          await supabase.from('contacts').insert({
+            workspace_id: account.workspace_id,
+            instagram_user_id: igUserId,
+            instagram_username: senderUsername,
+            email: contactEmail,
+            first_seen_at: new Date().toISOString(),
+            last_seen_at: new Date().toISOString(),
+            interaction_count: 1
+          });
+        }
+
+        // Update Automation dm_sent_count
+        await supabase.from('automations').update({
+          dm_sent_count: matchedAut.dm_sent_count + 1
+        }).eq('id', matchedAut.id);
+
+        // Log event
+        if (isEmailCollected && extractedEmail) {
+          await supabase.from('automation_events').insert({
+            automation_id: matchedAut.id,
+            workspace_id: account.workspace_id,
+            event_type: 'email_collected',
+            instagram_user_id: igUserId,
+            instagram_username: senderUsername,
+            metadata: { text: commentText, email: extractedEmail },
+            occurred_at: new Date().toISOString()
+          });
+        }
+
+        const matchedKeyword = (matchedAut.trigger_config?.keywords || []).find((keyword: string) => {
+          const kw = keyword.toLowerCase().trim();
+          return kw && commentText.toLowerCase().includes(kw);
+        }) || 'default';
+
+        await supabase.from('automation_events').insert({
+          automation_id: matchedAut.id,
+          workspace_id: account.workspace_id,
+          event_type: 'dm_sent',
+          instagram_user_id: igUserId,
+          instagram_username: senderUsername,
+          metadata: {
+            text: commentText,
+            action: matchedAut.action_type,
+            message: (isEmailPrompt || isFollowPrompt) ? commentReplyText : finalMessage,
+            url: finalUrl,
+            keyword: matchedKeyword
+          },
+          occurred_at: new Date().toISOString()
+        });
+      }
+    }
+  }
+
+  // 2. Handle Messages/DMs Webhook (entry.messaging)
+  if (entry.messaging) {
+    for (const messageEvent of entry.messaging) {
+      if (messageEvent.message && !messageEvent.message.is_echo) {
+        const senderId = messageEvent.sender.id;
+        const messageText = messageEvent.message.text || '';
+        const quickReplyPayload = messageEvent.message.quick_reply?.payload;
+
+        console.log(`Received DM webhook from sender ID ${senderId}: "${messageText}" (payload: ${quickReplyPayload})`);
+
+        // Fetch the Instagram account details from Supabase using entry.id
+        const { data: accounts, error: accError } = await supabase
+          .from('instagram_accounts')
+          .select('*')
+          .eq('instagram_user_id', instagramAccountId)
+          .limit(1);
+
+        const account = accounts?.[0];
+
+        if (accError || !account) {
+          console.error(`Instagram account ${instagramAccountId} not found in database:`, accError);
+          continue;
+        }
+
+        // Fetch user profile from Meta Graph API
+        let senderUsername = '';
+        let isUserFollowBusiness = false;
+        try {
+          const profileRes = await fetch(`https://graph.instagram.com/v20.0/${senderId}?fields=username,is_user_follow_business&access_token=${account.access_token}`);
+          const profileData = await profileRes.json();
+          if (profileRes.ok && profileData) {
+            if (profileData.username) {
+              senderUsername = profileData.username;
+            }
+            if (profileData.is_user_follow_business !== undefined) {
+              isUserFollowBusiness = profileData.is_user_follow_business;
+            }
+          }
+        } catch (profileErr) {
+          console.error('Error fetching user profile from Meta Graph API:', profileErr);
+        }
+
+        if (!senderUsername) {
+          console.warn(`Could not resolve username for sender ID ${senderId}. Skipping DM handling.`);
+          continue;
+        }
+
+        const igUserId = `ig_user_${senderUsername.toLowerCase()}`;
+
+        // Fetch contact from DB
+        const { data: dbContact } = await supabase
+          .from('contacts')
+          .select('*')
+          .eq('workspace_id', account.workspace_id)
+          .eq('instagram_user_id', igUserId)
+          .maybeSingle();
+
+        let matchedAut = null;
+        let isNewTrigger = false;
+
+        const isStory = !!(messageEvent.message.reply_to?.story || messageText.toLowerCase().includes("mentioned you in their story") || messageText.toLowerCase().includes("reacted to your story"));
+        const targetTriggerType = isStory ? 'story_reply' : 'dm';
+
+        // Only check keyword triggers if NOT a quick reply payload
+        if (!quickReplyPayload) {
+          const { data: directAutomations } = await supabase
+            .from('automations')
+            .select('*')
+            .eq('instagram_account_id', account.id)
+            .eq('status', 'live')
+            .eq('trigger_type', targetTriggerType);
+
+          if (directAutomations && directAutomations.length > 0) {
+            matchedAut = directAutomations.find(aut => {
+              const keywordsMatch = checkKeywordMatch(messageText, aut.trigger_config?.keywords);
+              const storyMatches = !aut.trigger_config?.post_id || aut.trigger_config.post_id === messageEvent.message.reply_to?.story?.id;
+              return keywordsMatch && storyMatches;
+            });
+            if (matchedAut) {
+              isNewTrigger = true;
+            }
+          }
+        }
+
+        if (isNewTrigger && matchedAut) {
+          const oneDayAgo = new Date(Date.now() - 10 * 1000).toISOString();
+          const { data: recentSent } = await supabase
+            .from('automation_events')
+            .select('id')
+            .eq('automation_id', matchedAut.id)
+            .eq('instagram_user_id', igUserId)
+            .eq('event_type', 'dm_sent')
+            .gt('occurred_at', oneDayAgo)
+            .limit(1)
+            .maybeSingle();
+
+          if (recentSent) {
+            console.log(`Deduplicated direct trigger: @${senderUsername} already sent a DM from this automation in the last 24h.`);
+            await supabase.from('automation_events').insert({
+              automation_id: matchedAut.id,
+              workspace_id: account.workspace_id,
+              event_type: 'dm_blocked_dedup',
+              instagram_user_id: igUserId,
+              instagram_username: senderUsername,
+              metadata: { text: messageText, reason: '24h throttle' },
+              occurred_at: new Date().toISOString()
+            });
+            continue;
+          }
+
+          // Fetch workspace to check quota
+          const { data: workspace } = await supabase
+            .from('workspaces')
+            .select('*')
+            .eq('id', account.workspace_id)
+            .single();
+
+          if (!workspace) continue;
+
+          // Global quota check for Free plans
+          if (workspace.plan === 'free') {
+            const globalQuotaExceeded = await checkGlobalQuotaExceeded(account.instagram_user_id);
+            if (globalQuotaExceeded) {
+              console.warn(`Global quota exhausted for Instagram account ${account.instagram_user_id}`);
+              await supabase.from('automation_events').insert({
+                automation_id: matchedAut.id,
+                workspace_id: account.workspace_id,
+                event_type: 'dm_blocked_quota',
+                instagram_user_id: igUserId,
+                instagram_username: senderUsername,
+                metadata: { text: messageText, reason: 'global_account_limit_exhausted' },
+                occurred_at: new Date().toISOString()
+              });
+              continue;
+            }
+          }
+
+          const planRemaining = Math.max(0, workspace.dm_quota_monthly - workspace.dm_sent_current_period);
+          const addonRemaining = Math.max(0, workspace.dm_addon_credits);
+          const totalRemaining = planRemaining + addonRemaining;
+
+          if (totalRemaining <= 0) {
+            console.warn(`Quota exhausted for workspace ${account.workspace_id}`);
+            await supabase.from('automation_events').insert({
+              automation_id: matchedAut.id,
+              workspace_id: account.workspace_id,
+              event_type: 'dm_blocked_quota',
+              instagram_user_id: igUserId,
+              instagram_username: senderUsername,
+              metadata: { text: messageText },
+              occurred_at: new Date().toISOString()
+            });
+            continue;
+          }
+
+          // Evaluate gates
+          let finalMessage = matchedAut.action_config?.message || '';
+          let finalUrl = matchedAut.action_config?.url || '';
+          let isEmailPrompt = false;
+          let isEmailCollected = false;
+          let isFollowPrompt = false;
+          let quickReplies: any = undefined;
+
+          const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+          const extractedEmail = messageText.match(emailRegex)?.[0];
+          const hasSavedEmail = dbContact?.email && dbContact.email.includes('@');
+
+          if (matchedAut.action_type === 'email_gate') {
+            if (extractedEmail || hasSavedEmail) {
+              isEmailCollected = true;
+            } else {
+              finalMessage = `Please provide your email address to receive your link:`;
+              finalUrl = '';
+              isEmailPrompt = true;
+            }
+          } else if (matchedAut.action_type === 'follow_gate') {
+            const isFollowing = isUserFollowBusiness || await checkInstagramFollowStatus(senderId, account.access_token);
+            if (!isFollowing) {
+              finalMessage = `Nearly there! The link is especially for my followers ✨\n\nRight after you follow me, reply with 'Following' (or tap the button below) and I'll send you the link! 🎉`;
+              finalUrl = '';
+              isFollowPrompt = true;
+              quickReplies = [{ title: 'Following', payload: `check_follow_${matchedAut.id}` }];
+            }
+          }
+
+          // Send response
+          if (isFollowPrompt) {
+            await sendInstagramDMWithQuickReplies(instagramAccountId, senderId, finalMessage, quickReplies, account.access_token);
+          } else if (isEmailPrompt) {
+            await sendInstagramDM(instagramAccountId, senderId, finalMessage, account.access_token);
+          } else {
+            const actionLinks = matchedAut.action_config?.links || (matchedAut.action_config?.url ? [{ url: matchedAut.action_config.url, label: matchedAut.name || 'Download Now' }] : []);
+            if (actionLinks.length > 0) {
+              await sendInstagramLinkButtons(instagramAccountId, senderId, finalMessage || 'Click below for complete details', actionLinks, account.access_token);
+            } else {
+              await sendInstagramDM(instagramAccountId, senderId, finalMessage, account.access_token);
+            }
+          }
+
+          // Quota Deduction
+          await deductWorkspaceQuota(workspace, account.instagram_user_id);
+
+          // Update/Upsert Contact
+          const contactEmail = extractedEmail || dbContact?.email || null;
+          if (dbContact) {
+            await supabase.from('contacts').update({
+              last_seen_at: new Date().toISOString(),
+              interaction_count: dbContact.interaction_count + 1,
+              email: contactEmail
+            }).eq('id', dbContact.id);
+          } else {
+            await supabase.from('contacts').insert({
+              workspace_id: account.workspace_id,
+              instagram_user_id: igUserId,
+              instagram_username: senderUsername,
+              email: contactEmail,
+              first_seen_at: new Date().toISOString(),
+              last_seen_at: new Date().toISOString(),
+              interaction_count: 1
+            });
+          }
+
+          // Update Automation dm_sent_count
+          await supabase.from('automations').update({
+            dm_sent_count: matchedAut.dm_sent_count + 1
+          }).eq('id', matchedAut.id);
+
+          // Log event
+          if (isEmailCollected && extractedEmail) {
+            await supabase.from('automation_events').insert({
+              automation_id: matchedAut.id,
+              workspace_id: account.workspace_id,
+              event_type: 'email_collected',
+              instagram_user_id: igUserId,
+              instagram_username: senderUsername,
+              metadata: { text: messageText, email: extractedEmail },
+              occurred_at: new Date().toISOString()
+            });
+          }
+
+          const matchedKeyword = (matchedAut.trigger_config?.keywords || []).find((keyword: string) => {
+            const kw = keyword.toLowerCase().trim();
+            return kw && messageText.toLowerCase().includes(kw);
+          }) || 'default';
+
+          await supabase.from('automation_events').insert({
+            automation_id: matchedAut.id,
+            workspace_id: account.workspace_id,
+            event_type: 'dm_sent',
+            instagram_user_id: igUserId,
+            instagram_username: senderUsername,
+            metadata: {
+              text: messageText,
+              action: matchedAut.action_type,
+              message: finalMessage,
+              url: finalUrl,
+              keyword: matchedKeyword
+            },
+            occurred_at: new Date().toISOString()
+          });
+
+          continue;
+        }
+
+        if (!dbContact) continue;
+
+        // Check ongoing gate prompts
+        const { data: lastPromptEvent } = await supabase
+          .from('automation_events')
+          .select('*')
+          .eq('instagram_user_id', igUserId)
+          .eq('event_type', 'dm_sent')
+          .order('occurred_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (lastPromptEvent && lastPromptEvent.automation_id) {
+          const { data: aut } = await supabase
+            .from('automations')
+            .select('*')
+            .eq('id', lastPromptEvent.automation_id)
+            .eq('status', 'live')
+            .maybeSingle();
+          if (aut) {
+            matchedAut = aut;
+          }
+        }
+
+        if (!matchedAut) {
+          const { data: automations } = await supabase
+            .from('automations')
+            .select('*')
+            .eq('instagram_account_id', account.id)
+            .eq('status', 'live')
+            .in('action_type', ['email_gate', 'follow_gate']);
+
+          if (automations && automations.length > 0) {
+            matchedAut = automations[0];
+          }
+        }
+
+        if (!matchedAut) continue;
+
+        const { data: workspace } = await supabase
+          .from('workspaces')
+          .select('*')
+          .eq('id', account.workspace_id)
+          .single();
+
+        if (!workspace) continue;
+
+        if (workspace.plan === 'free') {
+          const globalQuotaExceeded = await checkGlobalQuotaExceeded(account.instagram_user_id);
+          if (globalQuotaExceeded) continue;
+        }
+
+        const planRemaining = Math.max(0, workspace.dm_quota_monthly - workspace.dm_sent_current_period);
+        const addonRemaining = Math.max(0, workspace.dm_addon_credits);
+        const totalRemaining = planRemaining + addonRemaining;
+
+        if (totalRemaining <= 0) continue;
+
+        // Case A: Follow Gate
+        if (matchedAut.action_type === 'follow_gate') {
+          const isFollowing = isUserFollowBusiness || await checkInstagramFollowStatus(senderId, account.access_token);
+
+          if (isFollowing) {
+            const successMessage = `${matchedAut.action_config?.message || 'Click below for complete details'}`.trim();
+            const actionLinks = matchedAut.action_config?.links || (matchedAut.action_config?.url ? [{ url: matchedAut.action_config.url, label: matchedAut.name || 'Download Now' }] : []);
+
+            if (actionLinks.length > 0) {
+              await sendInstagramLinkButtons(instagramAccountId, senderId, successMessage, actionLinks, account.access_token);
+            } else {
+              await sendInstagramDM(instagramAccountId, senderId, successMessage, account.access_token);
+            }
+
+            await deductWorkspaceQuota(workspace, account.instagram_user_id);
+
+            await supabase.from('automations').update({
+              dm_sent_count: matchedAut.dm_sent_count + 1
+            }).eq('id', matchedAut.id);
+
+            await supabase.from('automation_events').insert([
+              {
+                automation_id: matchedAut.id,
+                workspace_id: account.workspace_id,
+                event_type: 'follow_verified',
+                instagram_user_id: igUserId,
+                instagram_username: senderUsername,
+                metadata: { text: messageText, followed: true },
+                occurred_at: new Date().toISOString()
+              },
+              {
+                automation_id: matchedAut.id,
+                workspace_id: account.workspace_id,
+                event_type: 'dm_sent',
+                instagram_user_id: igUserId,
+                instagram_username: senderUsername,
+                metadata: {
+                  text: messageText,
+                  action: 'follow_gate',
+                  message: successMessage,
+                  url: actionLinks[0]?.url || '',
+                  links: actionLinks
+                },
+                occurred_at: new Date().toISOString()
+              }
+            ]);
+          } else {
+            const promptMessage = `I checked, but it looks like you aren't following @${account.username || 'us'} yet! 🔍\n\nPlease make sure to follow first, then reply with 'Following' (or tap the button below) so I can send you the link! 🚀`;
+            await sendInstagramDMWithQuickReplies(instagramAccountId, senderId, promptMessage, [{ title: 'Following', payload: `check_follow_${matchedAut.id}` }], account.access_token);
+
+            await supabase.from('automation_events').insert({
+              automation_id: matchedAut.id,
+              workspace_id: account.workspace_id,
+              event_type: 'dm_sent',
+              instagram_user_id: igUserId,
+              instagram_username: senderUsername,
+              metadata: {
+                text: messageText,
+                action: 'follow_gate_prompt_retry',
+                message: promptMessage
+              },
+              occurred_at: new Date().toISOString()
+            });
+          }
+          continue;
+        }
+
+        // Case B: Email Gate
+        if (matchedAut.action_type === 'email_gate') {
+          const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+          const extractedEmail = messageText.match(emailRegex)?.[0];
+
+          if (extractedEmail) {
+            await supabase.from('contacts').update({
+              email: extractedEmail,
+              last_seen_at: new Date().toISOString(),
+              interaction_count: dbContact.interaction_count + 1
+            }).eq('id', dbContact.id);
+
+            const successMessage = `${matchedAut.action_config?.message || 'Click below for complete details'}`.trim();
+            const actionLinks = matchedAut.action_config?.links || (matchedAut.action_config?.url ? [{ url: matchedAut.action_config.url, label: matchedAut.name || 'Download Now' }] : []);
+
+            if (actionLinks.length > 0) {
+              await sendInstagramLinkButtons(instagramAccountId, senderId, successMessage, actionLinks, account.access_token);
+            } else {
+              await sendInstagramDM(instagramAccountId, senderId, successMessage, account.access_token);
+            }
+
+            await deductWorkspaceQuota(workspace, account.instagram_user_id);
+
+            await supabase.from('automations').update({
+              dm_sent_count: matchedAut.dm_sent_count + 1
+            }).eq('id', matchedAut.id);
+
+            await supabase.from('automation_events').insert([
+              {
+                automation_id: matchedAut.id,
+                workspace_id: account.workspace_id,
+                event_type: 'email_collected',
+                instagram_user_id: igUserId,
+                instagram_username: senderUsername,
+                metadata: { text: messageText, email: extractedEmail },
+                occurred_at: new Date().toISOString()
+              },
+              {
+                automation_id: matchedAut.id,
+                workspace_id: account.workspace_id,
+                event_type: 'dm_sent',
+                instagram_user_id: igUserId,
+                instagram_username: senderUsername,
+                metadata: {
+                  text: messageText,
+                  action: matchedAut.action_type,
+                  message: successMessage,
+                  url: actionLinks[0]?.url || '',
+                  links: actionLinks
+                },
+                occurred_at: new Date().toISOString()
+              }
+            ]);
+          } else {
+            const promptMessage = `Please provide your email address to receive your link:`;
+            await sendInstagramDM(instagramAccountId, senderId, promptMessage, account.access_token);
+
+            await supabase.from('automation_events').insert({
+              automation_id: matchedAut.id,
+              workspace_id: account.workspace_id,
+              event_type: 'dm_sent',
+              instagram_user_id: igUserId,
+              instagram_username: senderUsername,
+              metadata: {
+                text: messageText,
+                action: 'email_gate_prompt_retry',
+                message: promptMessage
+              },
+              occurred_at: new Date().toISOString()
+            });
+          }
+          continue;
+        }
+      }
+    }
+  }
+}
+
+// Inline Fallback Helper Functions
 async function sendInstagramCommentReply(commentId: string, message: string, accessToken: string) {
   try {
     const res = await fetch(`https://graph.instagram.com/v20.0/${commentId}/replies`, {
@@ -939,13 +927,8 @@ async function sendInstagramCommentReply(commentId: string, message: string, acc
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${accessToken}`
       },
-      body: JSON.stringify({
-        message
-      })
+      body: JSON.stringify({ message })
     });
-    if (!res.ok) {
-      console.error('Failed to send public comment reply:', await res.text());
-    }
     return res;
   } catch (err) {
     console.error('Error sending public comment reply:', err);
@@ -955,28 +938,16 @@ async function sendInstagramCommentReply(commentId: string, message: string, acc
 async function checkInstagramFollowStatus(senderId: string, accessToken: string): Promise<boolean> {
   try {
     const res = await fetch(`https://graph.instagram.com/v20.0/${senderId}?fields=is_user_follow_business&access_token=${accessToken}`);
-    if (!res.ok) {
-      const errText = await res.text();
-      try {
-        const errJson = JSON.parse(errText);
-        if (errJson.error?.code === 230) {
-          console.log(`[Follow Gate] User consent required to check follow status for sender ID ${senderId}. This is standard Meta API behavior before direct messaging is established.`);
-          return false;
-        }
-      } catch (e) { }
-      console.error('Failed to check follow status:', errText);
-      return false;
-    }
+    if (!res.ok) return false;
     const data = await res.json();
     return data.is_user_follow_business || false;
   } catch (err) {
-    console.error('Error checking follow status:', err);
     return false;
   }
 }
 
 async function sendInstagramDM(instagramAccountId: string, recipientId: string, text: string, accessToken: string) {
-  const res = await fetch(`https://graph.instagram.com/v20.0/${instagramAccountId}/messages`, {
+  return fetch(`https://graph.instagram.com/v20.0/${instagramAccountId}/messages`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -987,10 +958,6 @@ async function sendInstagramDM(instagramAccountId: string, recipientId: string, 
       message: { text }
     })
   });
-  if (!res.ok) {
-    console.error('Failed to send DM:', await res.text());
-  }
-  return res;
 }
 
 async function sendInstagramDMWithQuickReplies(
@@ -1000,7 +967,7 @@ async function sendInstagramDMWithQuickReplies(
   quickReplies: Array<{ title: string; payload: string }>,
   accessToken: string
 ) {
-  const res = await fetch(`https://graph.instagram.com/v20.0/${instagramAccountId}/messages`, {
+  return fetch(`https://graph.instagram.com/v20.0/${instagramAccountId}/messages`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1018,63 +985,6 @@ async function sendInstagramDMWithQuickReplies(
       }
     })
   });
-  if (!res.ok) {
-    console.error('Failed to send DM with quick replies:', await res.text());
-  }
-  return res;
-}
-
-async function sendInstagramLinkButton(
-  instagramAccountId: string,
-  recipientId: string,
-  title: string,
-  buttonUrl: string,
-  buttonTitle: string,
-  accessToken: string
-) {
-  // To support Instagram Web (desktop/laptop browsers) which do not render generic card templates,
-  // we append the link directly to the end of the text message itself as a clickable fallback.
-  const fullMessageText = `${title}\n\n👉 ${buttonTitle}: ${buttonUrl}`.trim();
-  await sendInstagramDM(instagramAccountId, recipientId, fullMessageText, accessToken);
-
-  // Send the button card with a clean, short title
-  const cleanCardTitle = "Tap below to open:";
-
-  const res = await fetch(`https://graph.instagram.com/v20.0/${instagramAccountId}/messages`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`
-    },
-    body: JSON.stringify({
-      recipient: { id: recipientId },
-      message: {
-        attachment: {
-          type: 'template',
-          payload: {
-            template_type: 'generic',
-            elements: [
-              {
-                title: cleanCardTitle,
-                buttons: [
-                  {
-                    type: 'web_url',
-                    url: buttonUrl,
-                    title: buttonTitle.trim().substring(0, 20) || 'Open Link'
-                  }
-                ]
-              }
-            ]
-          }
-        }
-      }
-    })
-  });
-
-if (!res.ok) {
-  console.error('Failed to send Link Button template:', await res.text());
-}
-return res;
 }
 
 async function sendInstagramLinkButtons(
@@ -1088,15 +998,10 @@ async function sendInstagramLinkButtons(
     return sendInstagramDM(instagramAccountId, recipientId, title, accessToken);
   }
 
-  // To support Instagram Web (desktop/laptop browsers) which do not render generic card templates,
-  // we append the links directly to the end of the text message itself as a clickable fallback.
   const linksText = links.map(l => `👉 ${l.label || 'Link'}: ${l.url}`).join('\n');
   const fullMessageText = `${title}\n\n${linksText}`.trim();
-
-  // Send the text message (containing the clickable link fallbacks)
   await sendInstagramDM(instagramAccountId, recipientId, fullMessageText, accessToken);
 
-  // Send the generic template for mobile users who get the premium card experience
   const elements = [];
   const chunkSize = 3;
   const cleanCardTitle = "Tap below to open:";
@@ -1114,7 +1019,7 @@ async function sendInstagramLinkButtons(
   }
 
   try {
-    const res = await fetch(`https://graph.instagram.com/v20.0/${instagramAccountId}/messages`, {
+    return fetch(`https://graph.instagram.com/v20.0/${instagramAccountId}/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1133,7 +1038,6 @@ async function sendInstagramLinkButtons(
         }
       })
     });
-    return res;
   } catch (err) {
     console.error('Error sending generic template:', err);
   }
@@ -1171,7 +1075,6 @@ async function deductWorkspaceQuota(workspace: any, instagramUserId: string) {
     dm_addon_credits: newAddonCredits
   }).eq('id', workspace.id);
 
-  // Update global usage
   const { data: globalUsage } = await supabase
     .from('instagram_global_usage')
     .select('*')
@@ -1183,21 +1086,18 @@ async function deductWorkspaceQuota(workspace: any, instagramUserId: string) {
   if (globalUsage) {
     const resetDate = new Date(globalUsage.reset_date);
     if (resetDate < thisMonthStart) {
-      // It's a new month, reset the counter
       await supabase.from('instagram_global_usage').update({
         dm_sent_count: 1,
         reset_date: thisMonthStart.toISOString(),
         updated_at: new Date().toISOString()
       }).eq('instagram_user_id', instagramUserId);
     } else {
-      // Increment
       await supabase.from('instagram_global_usage').update({
         dm_sent_count: globalUsage.dm_sent_count + 1,
         updated_at: new Date().toISOString()
       }).eq('instagram_user_id', instagramUserId);
     }
   } else {
-    // Insert new global usage row
     await supabase.from('instagram_global_usage').insert({
       instagram_user_id: instagramUserId,
       dm_sent_count: 1,

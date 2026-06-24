@@ -328,7 +328,7 @@ describe('Instagram API Endpoints', () => {
           ]
         }
       };
-      const req = new Request('http://localhost/api/instagram/media?accountId=acc_123');
+      const req = new Request('http://localhost/api/instagram/media?accountId=acc_stories_456');
       const res = await GET_media(req);
       expect(res.status).toBe(200);
       const data = await res.json();

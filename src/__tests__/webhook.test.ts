@@ -69,6 +69,19 @@ vi.mock('@supabase/supabase-js', () => ({
   createClient: () => mockSupabase,
 }));
 
+vi.mock('@upstash/qstash', () => {
+  return {
+    Client: class {
+      async publishJSON() {
+        if (process.env.TEST_QSTASH_FAIL === 'true') {
+          throw new Error('QStash Daily Limit Exceeded 429');
+        }
+        return { messageId: 'msg_123' };
+      }
+    }
+  };
+});
+
 // Import webhook route handler
 import { GET, POST } from '../app/api/webhooks/instagram/route';
 import crypto from 'crypto';
@@ -850,6 +863,140 @@ describe('Instagram Webhook Handler', () => {
       // Verify that messages endpoint was called
       const messageCall = fetchSpy.mock.calls.find(call => call[0].includes('/messages'));
       expect(messageCall).toBeDefined();
+    });
+
+    it('should successfully publish to QStash priority queues if QStash is configured', async () => {
+      process.env.QSTASH_TOKEN = 'test_token';
+      process.env.TEST_QSTASH_FAIL = 'false';
+
+      const payload = JSON.stringify({
+        object: 'instagram',
+        entry: [
+          {
+            id: '123456789',
+            time: 1600000000,
+            changes: [
+              {
+                field: 'comments',
+                value: {
+                  id: 'comment_123',
+                  text: 'info',
+                  from: { id: 'sender_id', username: 'alice' },
+                  media: { id: 'media_123' }
+                }
+              }
+            ]
+          }
+        ]
+      });
+
+      const req = new Request('http://localhost/api/webhooks/instagram', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-hub-signature-256': signPayload(payload, 'secret_key')
+        },
+        body: payload
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.success).toBe(true);
+
+      // Clean up
+      delete process.env.QSTASH_TOKEN;
+    });
+
+    it('should gracefully fallback to direct processing if QStash publish fails (e.g. daily limit exceeded)', async () => {
+      process.env.QSTASH_TOKEN = 'test_token';
+      process.env.TEST_QSTASH_FAIL = 'true';
+
+      const mockAccount = { id: 'acc_123', workspace_id: 'ws_123', instagram_user_id: '123456789', access_token: 'tok_123' };
+      const mockAutomation = {
+        id: 'aut_123',
+        workspace_id: 'ws_123',
+        instagram_account_id: 'acc_123',
+        name: 'Auto Reply',
+        status: 'live',
+        trigger_type: 'comment',
+        action_type: 'dm',
+        action_config: { message: 'Here is your info' },
+        trigger_config: { keywords: ['info'] },
+        dm_sent_count: 0
+      };
+      const mockWorkspace = { id: 'ws_123', dm_quota_monthly: 500, dm_sent_current_period: 0, dm_addon_credits: 0 };
+
+      const updateSpy = vi.fn();
+
+      vi.spyOn(mockSupabase, 'from').mockImplementation((table) => {
+        const mockQB = {
+          select: vi.fn().mockImplementation(() => mockQB),
+          eq: vi.fn().mockImplementation(() => mockQB),
+          gt: vi.fn().mockImplementation(() => mockQB),
+          limit: vi.fn().mockImplementation(() => mockQB),
+          order: vi.fn().mockImplementation(() => mockQB),
+          single: vi.fn().mockImplementation(() => {
+            if (table === 'instagram_accounts') return Promise.resolve({ data: mockAccount, error: null });
+            if (table === 'workspaces') return Promise.resolve({ data: mockWorkspace, error: null });
+            return Promise.resolve({ data: null, error: 'Not found' });
+          }),
+          maybeSingle: vi.fn().mockImplementation(() => {
+            if (table === 'instagram_accounts') return Promise.resolve({ data: mockAccount, error: null });
+            return Promise.resolve({ data: null, error: null });
+          }),
+          insert: vi.fn().mockImplementation(() => mockQB),
+          update: updateSpy.mockImplementation(() => mockQB),
+          then: vi.fn().mockImplementation((onfulfilled) => {
+            if (table === 'automations') return Promise.resolve({ data: [mockAutomation], error: null }).then(onfulfilled);
+            if (table === 'instagram_accounts') return Promise.resolve({ data: [mockAccount], error: null }).then(onfulfilled);
+            return Promise.resolve({ data: [], error: null }).then(onfulfilled);
+          })
+        };
+        return mockQB as any;
+      });
+
+      const payload = JSON.stringify({
+        object: 'instagram',
+        entry: [
+          {
+            id: '123456789',
+            time: 1600000000,
+            changes: [
+              {
+                field: 'comments',
+                value: {
+                  id: 'comment_123',
+                  text: 'info',
+                  from: { id: 'sender_id', username: 'alice' },
+                  media: { id: 'media_123' }
+                }
+              }
+            ]
+          }
+        ]
+      });
+
+      const req = new Request('http://localhost/api/webhooks/instagram', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-hub-signature-256': signPayload(payload, 'secret_key')
+        },
+        body: payload
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.success).toBe(true);
+
+      // Verify that direct processing occurred by checking if supabase update was triggered
+      expect(updateSpy).toHaveBeenCalled();
+
+      // Clean up
+      delete process.env.QSTASH_TOKEN;
+      delete process.env.TEST_QSTASH_FAIL;
     });
   });
 });
