@@ -971,7 +971,7 @@ export default function LandingPage() {
           <div className="flex items-center gap-6">
             <a href="#" className="hover:text-purple-650 transition">Terms of Service</a>
             <a href="#" className="hover:text-purple-650 transition">Privacy Policy</a>
-            <a href="#" className="hover:text-purple-650 transition">Support</a>
+            <Link href="/dashboard/support" className="hover:text-purple-650 transition">Support</Link>
           </div>
         </div>
       </footer>

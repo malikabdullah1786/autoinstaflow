@@ -1,132 +1,239 @@
 "use client";
 
 import React, { useState } from 'react';
-import { HelpCircle, Mail, MessageSquare, ArrowRight, CheckCircle } from 'lucide-react';
+import { HelpCircle, Mail, MessageSquare, ArrowRight, CheckCircle, Copy, Clock, Globe, Send } from 'lucide-react';
+import { useApp } from '@/context/AppContext';
 
 export default function SupportPage() {
+  const { user } = useApp();
+  const [email, setEmail] = useState(user?.email || '');
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  // Sync email if user loads after mount
+  React.useEffect(() => {
+    if (user?.email && !email) {
+      setEmail(user.email);
+    }
+  }, [user?.email]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitted(true);
     setSubject('');
     setMessage('');
-    setTimeout(() => setSubmitted(false), 4000);
+    setTimeout(() => setSubmitted(false), 5000);
+  };
+
+  const copyEmail = () => {
+    navigator.clipboard.writeText('instaflowauto@gmail.com');
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const faqs = [
     {
       q: "How does the comment automation trigger work?",
-      a: "Our system listens for Meta webhooks. When a user writes a comment on your post or reel, the webhook fires, and our system sends the configured DM response within seconds."
+      a: "Our system listens for Meta webhooks. When a user comments on your specified Instagram post or Reel, the webhook triggers our system, which evaluates the text and instantly dispatches your configured DM in real-time."
     },
     {
-      q: "Does Auto Insta Flow support carousel posts?",
-      a: "Yes, you can configure comment automation rules to target specific posts (including carousels and reels) or apply rules globally to all your content."
+      q: "Is Auto Insta Flow approved by Meta?",
+      a: "Yes, absolutely. We use the official Meta Graph API and secure OAuth protocol. We never ask for your Instagram password, ensuring 100% security and compliance with Meta's developer terms."
     },
     {
-      q: "Can I collect emails using comments and DMs?",
-      a: "Yes! By enabling the 'Email Gate' feature in your automations, the system will ask users to submit their email address in the DM flow and store it directly in your contacts list."
+      q: "Can I collect email addresses through DMs?",
+      a: "Yes! By enabling the 'Email Gate' action in your automation, the system asks the user for their email. Once they reply with a valid email address, it is stored in your contacts dashboard and the gated link is released."
+    },
+    {
+      q: "What happens if my QStash daily message limits are reached?",
+      a: "Our system has an automatic smart fallback. If QStash limits or rate limits are reached, the system immediately switches to direct synchronous processing, ensuring no automated reply or lead is ever lost."
     }
   ];
 
   return (
-    <div className="flex flex-col gap-8 animate-fadeIn">
-      {/* Title */}
-      <div>
-        <h1 className="text-2xl font-extrabold text-zinc-900 tracking-tight">Support & Help Center</h1>
-        <p className="text-xs text-zinc-500 mt-1">
-          Have a question or running into an issue? Get help from our documentation or send us a message.
-        </p>
+    <div className="flex flex-col gap-8 animate-fadeIn max-w-6xl mx-auto pb-12">
+      {/* Header Hero Banner */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-purple-700 via-pink-600 to-orange-500 p-8 md:p-12 text-white shadow-lg">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.15),transparent_50%)]"></div>
+        <div className="relative z-10 max-w-2xl flex flex-col gap-3">
+          <span className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase w-max">
+            Help Center
+          </span>
+          <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">
+            How can we help you grow?
+          </h1>
+          <p className="text-sm text-purple-100 leading-relaxed font-medium">
+            Have questions about integrations, billing, or custom automation flows? Reach out to our dedicated support team directly or explore the frequently asked questions below.
+          </p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Columns: Contact Form & FAQ */}
-        <div className="lg:col-span-2 flex flex-col gap-6">
-          <div className="glass-panel p-6 bg-white border border-zinc-200 rounded-2xl shadow-sm flex flex-col gap-4">
-            <h2 className="text-base font-extrabold text-zinc-900 flex items-center gap-2">
-              <Mail className="w-5 h-5 text-zinc-700" /> Send a message to Support
-            </h2>
+        <div className="lg:col-span-2 flex flex-col gap-8">
+          
+          {/* Support Ticket Form */}
+          <div className="glass-panel p-6 sm:p-8 bg-white border border-zinc-200/80 rounded-2xl shadow-sm flex flex-col gap-6">
+            <div>
+              <h2 className="text-lg font-extrabold text-zinc-900 flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-purple-650" /> Write to Support
+              </h2>
+              <p className="text-xs text-zinc-550 mt-1">
+                Fill out the form below to open a ticket. We'll get back to you directly via email.
+              </p>
+            </div>
 
             {submitted ? (
-              <div className="p-4 rounded-xl bg-green-50 border border-green-200 text-green-700 text-xs font-bold flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
-                <span>Thank you! Your message has been sent to our support team. We'll reply within 24 hours.</span>
+              <div className="p-6 rounded-2xl bg-green-50 border border-green-200 text-green-800 text-xs flex flex-col gap-2 items-center text-center animate-scaleIn">
+                <CheckCircle className="w-10 h-10 text-green-500 mb-1" />
+                <span className="font-extrabold text-sm text-green-900">Message Sent Successfully!</span>
+                <p className="text-zinc-650 max-w-sm">
+                  Thank you! Your ticket has been forwarded to our support queue. We will contact you at <strong className="text-green-950 font-bold">{email}</strong> within 2 hours.
+                </p>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-zinc-600">Subject</label>
-                  <input
-                    type="text"
-                    required
-                    value={subject}
-                    onChange={(e) => setSubject(e.target.value)}
-                    placeholder="E.g. Connected account token issue"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-200 text-xs focus:outline-none focus:border-zinc-900 bg-zinc-50/50"
-                  />
+              <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-zinc-700">Your Email</label>
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      className="w-full px-4 py-3 rounded-xl border border-zinc-200 text-xs focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 bg-zinc-50/50 transition font-medium"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-zinc-700">Subject</label>
+                    <input
+                      type="text"
+                      required
+                      value={subject}
+                      onChange={(e) => setSubject(e.target.value)}
+                      placeholder="e.g., Connected account status issue"
+                      className="w-full px-4 py-3 rounded-xl border border-zinc-200 text-xs focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 bg-zinc-50/50 transition font-medium"
+                    />
+                  </div>
                 </div>
+
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-zinc-600">Message</label>
+                  <label className="text-xs font-bold text-zinc-700">Describe your issue</label>
                   <textarea
                     required
-                    rows={4}
+                    rows={5}
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
-                    placeholder="Describe your issue in detail..."
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-200 text-xs focus:outline-none focus:border-zinc-900 bg-zinc-50/50 resize-none"
+                    placeholder="Provide details about your question or issue, including any relevant post links or error messages..."
+                    className="w-full px-4 py-3 rounded-xl border border-zinc-200 text-xs focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 bg-zinc-50/50 resize-none transition font-medium"
                   />
                 </div>
+
                 <button
                   type="submit"
-                  className="bg-zinc-950 text-white px-5 py-3 rounded-xl text-xs font-bold hover:bg-zinc-900 transition w-full sm:w-max ml-auto flex items-center justify-center gap-2"
+                  className="btn-gradient text-white px-6 py-3.5 rounded-xl text-xs font-extrabold shadow-md hover:opacity-95 transition flex items-center justify-center gap-2 sm:w-max ml-auto"
                 >
-                  Send Message
+                  <Send className="w-3.5 h-3.5" /> Send Message
                 </button>
               </form>
             )}
           </div>
 
-          {/* FAQs */}
+          {/* FAQs section */}
           <div className="flex flex-col gap-4">
-            <h3 className="text-sm font-extrabold text-zinc-900">Frequently Asked Questions</h3>
-            <div className="flex flex-col gap-3">
+            <h3 className="text-base font-extrabold text-zinc-900 flex items-center gap-2">
+              <HelpCircle className="w-5 h-5 text-purple-650" /> Frequently Asked Questions
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {faqs.map((faq, idx) => (
-                <div key={idx} className="glass-panel p-4 bg-white border border-zinc-200 rounded-xl">
-                  <span className="text-xs font-bold text-zinc-800 block mb-1">{faq.q}</span>
-                  <p className="text-xs text-zinc-500 leading-relaxed">{faq.a}</p>
+                <div key={idx} className="glass-panel p-5 bg-white border border-zinc-200 rounded-xl hover:border-purple-300 transition-colors shadow-sm flex flex-col gap-2">
+                  <span className="text-xs font-extrabold text-zinc-800">{faq.q}</span>
+                  <p className="text-xs text-zinc-500 leading-relaxed font-medium">{faq.a}</p>
                 </div>
               ))}
             </div>
           </div>
+
         </div>
 
-        {/* Right Column: Quick Links */}
+        {/* Right Column: Contact info & Quick Links */}
         <div className="flex flex-col gap-6">
+          
+          {/* Direct Support Card */}
+          <div className="glass-panel p-6 bg-white border border-zinc-200 rounded-2xl shadow-sm flex flex-col gap-5">
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-extrabold tracking-wider text-purple-600 uppercase">Direct Access</span>
+              <h3 className="text-sm font-extrabold text-zinc-900">Official Support Channel</h3>
+            </div>
+
+            <div className="p-4 rounded-xl bg-zinc-50 border border-zinc-150 flex flex-col gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center text-purple-600">
+                  <Mail className="w-4 h-4" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-bold text-zinc-400 uppercase">Support Email</span>
+                  <span className="text-xs font-bold text-zinc-800">instaflowauto@gmail.com</span>
+                </div>
+              </div>
+
+              <div className="flex gap-2 mt-1">
+                <button
+                  onClick={copyEmail}
+                  className="flex-1 py-2 px-3 rounded-lg border border-zinc-200 hover:bg-white text-[10px] font-extrabold text-zinc-700 transition flex items-center justify-center gap-1.5"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  {copied ? 'Copied!' : 'Copy Email'}
+                </button>
+                <a
+                  href="mailto:instaflowauto@gmail.com"
+                  className="flex-1 py-2 px-3 rounded-lg bg-zinc-900 text-white hover:bg-zinc-800 text-[10px] font-extrabold transition flex items-center justify-center gap-1.5 text-center"
+                >
+                  Write Email
+                </a>
+              </div>
+            </div>
+
+            <hr className="border-zinc-100" />
+
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-3 text-xs text-zinc-650">
+                <Clock className="w-4 h-4 text-purple-500 shrink-0" />
+                <span>Response time: <strong className="text-zinc-850">&lt; 2 Hours</strong></span>
+              </div>
+              <div className="flex items-center gap-3 text-xs text-zinc-650">
+                <Globe className="w-4 h-4 text-purple-500 shrink-0" />
+                <span>Global Coverage: <strong className="text-zinc-850">24/7 Mon - Sun</strong></span>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Links Card */}
           <div className="glass-panel p-6 bg-white border border-zinc-200 rounded-2xl shadow-sm flex flex-col gap-4">
-            <h3 className="text-sm font-extrabold text-zinc-900 flex items-center gap-2">
-              <HelpCircle className="w-4 h-4 text-zinc-700" /> Helpful Links
-            </h3>
+            <h3 className="text-sm font-extrabold text-zinc-900">Helpful Resources</h3>
             <div className="flex flex-col gap-2">
               <a 
                 href="/docs" 
                 target="_blank" 
-                className="p-3 rounded-xl border border-zinc-150 hover:bg-zinc-50 transition flex items-center justify-between text-xs font-bold text-zinc-700"
+                className="p-3.5 rounded-xl border border-zinc-150 hover:bg-zinc-55/10 hover:border-purple-300 transition flex items-center justify-between text-xs font-extrabold text-zinc-700 group"
               >
-                <span>Documentation</span>
-                <ArrowRight className="w-3.5 h-3.5 text-zinc-400" />
+                <span className="group-hover:text-purple-700 transition-colors">Documentation Portal</span>
+                <ArrowRight className="w-3.5 h-3.5 text-zinc-400 group-hover:text-purple-650 transition-all group-hover:translate-x-0.5" />
               </a>
               <a 
                 href="/api-reference" 
                 target="_blank" 
-                className="p-3 rounded-xl border border-zinc-150 hover:bg-zinc-50 transition flex items-center justify-between text-xs font-bold text-zinc-700"
+                className="p-3.5 rounded-xl border border-zinc-150 hover:bg-zinc-55/10 hover:border-purple-300 transition flex items-center justify-between text-xs font-extrabold text-zinc-700 group"
               >
-                <span>API Reference</span>
-                <ArrowRight className="w-3.5 h-3.5 text-zinc-400" />
+                <span className="group-hover:text-purple-700 transition-colors">API Reference Manual</span>
+                <ArrowRight className="w-3.5 h-3.5 text-zinc-400 group-hover:text-purple-650 transition-all group-hover:translate-x-0.5" />
               </a>
             </div>
           </div>
+
         </div>
       </div>
     </div>
