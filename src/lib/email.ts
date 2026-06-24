@@ -231,10 +231,18 @@ const renderWelcomeEmail = (name: string, email: string): string => {
 
 // 2. Subscription Plan Activated / Modified Template
 const renderPlanActivatedEmail = (name: string, plan: string, cycle: string, quota: number): string => {
+  const isFree = plan.toLowerCase().includes('free');
+  const priorityText = isFree ? 'Standard Processing Queue' : 'High Priority Processing Queue';
+  const priorityColor = isFree ? '#a1a1aa' : '#10b981';
+  
+  const descriptionText = isFree
+    ? `You are currently on our <strong>Free Tier</strong>. To unlock advanced features like <strong>Email Gating</strong>, <strong>Follow Gating</strong>, and custom workflows, you can upgrade your plan at any time.`
+    : `With your active subscription, you now have access to advanced tools such as <strong>Email Gating</strong>, <strong>Follow Gating</strong>, and priority webhook processing speeds.`;
+
   const content = `
     <h2 class="title">Subscription Plan Activated! 💎</h2>
     <p class="text">
-      Hello ${name}, your workspace subscription has been updated successfully. Your new limits and priority queues are now active. Thank you for choosing Auto Insta Flow to scale your engagement!
+      Hello ${name}, your workspace subscription has been updated successfully. Your limits and queue settings are now active. Thank you for choosing Auto Insta Flow to scale your engagement!
     </p>
     
     <div class="highlight-box">
@@ -253,12 +261,12 @@ const renderPlanActivatedEmail = (name: string, plan: string, cycle: string, quo
       </div>
       <div class="highlight-item">
         <span class="highlight-label">Queue Priority</span>
-        <span class="highlight-value" style="color: #10b981;">High Priority Processing Queue</span>
+        <span class="highlight-value" style="color: ${priorityColor};">${priorityText}</span>
       </div>
     </div>
 
     <p class="text">
-      With your active subscription, you now have access to advanced tools such as <strong>Email Gating</strong>, <strong>Follow Gating</strong>, and priority webhook processing speeds.
+      ${descriptionText}
     </p>
 
     <div class="btn-container">
